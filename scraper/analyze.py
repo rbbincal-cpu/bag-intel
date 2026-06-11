@@ -46,6 +46,9 @@ def main():
     d60 = (t - timedelta(days=60)).isoformat()
     d90 = (t - timedelta(days=90)).isoformat()
     matchers = hero_matchers(cfg)
+    maxp = cfg.get("max_valid_price", 50000000)
+    valid = lambda x: x is not None and 0 < x < maxp
+    vp = lambda x: x if valid(x) else 0
 
     sites = {s["key"]: s for s in cfg["sites"]}
     data = {"generated": today, "currency": cfg.get("currency", "PHP"),
@@ -63,7 +66,7 @@ def main():
 
     for key, site in sites.items():
         ps = by_site.get(key, [])
-        inv = [p for p in ps if p["status"] in UNSOLD and (p["current_price"] or 0) > 0]
+        inv = [p for p in ps if p["status"] in UNSOLD and valid(p["current_price"])]
         sold_mtd = [p for p in ps if p["status"] in ("sold", "sold_out")
                     and p["sold_date"] and p["sold_date"] >= mtd_start]
         new_mtd = [p for p in ps if p["first_seen"] and p["first_seen"] >= mtd_start
@@ -97,7 +100,7 @@ def main():
         sold_brands = defaultdict(lambda: [0, 0.0])
         sold_models = defaultdict(lambda: [0, 0.0])
         for p in sold_mtd:
-            sp = p["sold_price"] or 0
+            sp = vp(p["sold_price"])
             sold_brands[p["brand"] or "Other"][0] += 1
             sold_brands[p["brand"] or "Other"][1] += sp
             m = f'{p["brand"] or ""} {p["model"] or "Other"}'.strip()
@@ -113,7 +116,7 @@ def main():
             "brand_mix": {k: round(v / tot_val * 100, 1) if tot_val else 0
                           for k, v in sorted(mix.items())},
             "sold_mtd_count": len(sold_mtd),
-            "sold_mtd_value": round(sum(p["sold_price"] or 0 for p in sold_mtd)),
+            "sold_mtd_value": round(sum(vp(p["sold_price"]) for p in sold_mtd)),
             "sold_mtd_brands": {k: {"count": v[0], "value": round(v[1])}
                                 for k, v in sorted(sold_brands.items(),
                                                    key=lambda x: -x[1][1])},
@@ -121,7 +124,7 @@ def main():
                                 for k, v in sorted(sold_models.items(),
                                                    key=lambda x: -x[1][1])[:15]},
             "new_mtd_count": len(new_mtd),
-            "new_mtd_value": round(sum(p["current_price"] or 0 for p in new_mtd)),
+            "new_mtd_value": round(sum(vp(p["current_price"]) for p in new_mtd)),
             "cadence": cadence,
             "aging60_count": len(aging60), "aging60_value": round(sum(p["current_price"] for p in aging60)),
             "aging90_count": len(aging90), "aging90_value": round(sum(p["current_price"] for p in aging90)),
@@ -165,10 +168,11 @@ def main():
         entry = {"name": name, "brand": hm["brand"], "per_site": {}, "all_prices": []}
         for key, site in sites.items():
             ps = [p for p in by_site.get(key, []) if p["hero"] == name]
-            live = [p for p in ps if p["status"] in UNSOLD and (p["current_price"] or 0) > 0]
+            live = [p for p in ps if p["status"] in UNSOLD and valid(p["current_price"])]
             sold_mtd = [p for p in ps if p["status"] in ("sold", "sold_out")
                         and p["sold_date"] and p["sold_date"] >= mtd_start]
-            sold_all = [p for p in ps if p["status"] in ("sold", "sold_out") and p["sold_price"]]
+            sold_all = [p for p in ps if p["status"] in ("sold", "sold_out")
+                        and valid(p["sold_price"])]
             dts = [p["days_to_sell"] for p in ps if p["days_to_sell"] is not None]
             entry["per_site"][key] = {
                 "site_name": site["name"], "is_mine": site.get("is_mine", False),
@@ -194,8 +198,8 @@ def main():
     # ── time series ─────────────────────────────────────────────────
     # inventory value & count per site per day (from snapshots, available only)
     rows = db.execute("""SELECT date, site, COUNT(*) c, SUM(price) v FROM snapshots
-                         WHERE available=1 AND price>0 GROUP BY date, site
-                         ORDER BY date""").fetchall()
+                         WHERE available=1 AND price>0 AND price<? GROUP BY date, site
+                         ORDER BY date""", (maxp,)).fetchall()
     series = defaultdict(lambda: {"dates": [], "value": [], "count": []})
     for r in rows:
         s = series[r["site"]]
@@ -206,13 +210,15 @@ def main():
 
     # sold per day per site (for MTD trend), new uploads per day
     sold_rows = db.execute("""SELECT sold_date d, site, COUNT(*) c,
-                              SUM(COALESCE(sold_price,0)) v FROM products
+                              SUM(CASE WHEN COALESCE(sold_price,0)<? THEN
+                                  COALESCE(sold_price,0) ELSE 0 END) v FROM products
                               WHERE status IN ('sold','sold_out') AND sold_date
-                              IS NOT NULL GROUP BY sold_date, site""").fetchall()
+                              IS NOT NULL GROUP BY sold_date, site""", (maxp,)).fetchall()
     data["series"]["sold"] = [dict(r) for r in sold_rows]
     new_rows = db.execute("""SELECT first_seen d, site, COUNT(*) c,
-                             SUM(COALESCE(current_price,0)) v FROM products
-                             GROUP BY first_seen, site""").fetchall()
+                             SUM(CASE WHEN COALESCE(current_price,0)<? THEN
+                                 COALESCE(current_price,0) ELSE 0 END) v FROM products
+                             GROUP BY first_seen, site""", (maxp,)).fetchall()
     # exclude each site's first-run bulk import from "new uploads"
     data["series"]["new"] = [dict(r) for r in new_rows
                              if r["d"] and r["d"] > first_run.get(r["site"], "")]

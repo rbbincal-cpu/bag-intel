@@ -137,8 +137,9 @@ def ingest_site(db, site, products, today, cfg, sess=None):
         # existing product ───────────────────────────────────────────
         updates = {"last_seen": today, "missing_streak": 0, "first_missing_date": None}
         old_price = row["current_price"] or 0
+        maxp = cfg.get("max_valid_price", 50000000)
 
-        if price > 0 and old_price > 0 and abs(price - old_price) >= 0.01:
+        if 0 < price < maxp and 0 < old_price < maxp and abs(price - old_price) >= 0.01:
             db.execute("INSERT INTO price_changes VALUES (?,?,?,?,?,?)",
                        (key, pid, today, old_price, price,
                         round((price - old_price) / old_price * 100, 2)))

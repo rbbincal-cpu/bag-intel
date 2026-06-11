@@ -6,6 +6,7 @@
 
 timezone: Asia/Manila
 currency: PHP
+max_valid_price: 50000000   # prices at/above this are placeholders ("DM for price") — excluded from value metrics
 
 sites:
   - key: pursemaison
