@@ -1,0 +1,83 @@
+# Competitor monitoring configuration
+# ── To add/remove a site: edit the `sites:` list below. brand_source controls
+#    how the brand is detected: vendor | tags | title
+# ── To adjust hero models: edit `hero_models:` (keywords are case-insensitive
+#    regexes matched against the normalized title)
+
+timezone: Asia/Manila
+currency: PHP
+
+sites:
+  - key: pursemaison
+    name: Purse Maison
+    base_url: https://www.pursemaison.com
+    is_mine: true
+    brand_source: vendor
+  - key: orangebox
+    name: The Orange Box
+    base_url: https://theorangebox.ph
+    is_mine: false
+    brand_source: title
+  - key: baghub
+    name: The Bag Hub
+    base_url: https://www.thebaghub.com
+    is_mine: false
+    brand_source: tags
+  - key: shopwithk
+    name: Shop with K
+    base_url: https://shopwithk.ph
+    is_mine: false
+    brand_source: title
+  - key: luxurywish
+    name: Luxury Wish
+    base_url: https://luxurywish.com.ph
+    is_mine: false
+    brand_source: vendor
+
+scrape:
+  page_limit: 250
+  max_pages: 60
+  delay_seconds: 1.5
+  timeout_seconds: 30
+  retries: 3
+  user_agent: "MarketIntelBot/1.0 (+rbbincal@gmail.com; polite daily snapshot)"
+  respect_robots: true
+  image_hash: true          # perceptual-hash first image of newly seen products
+  image_hash_width: 128
+
+sold_detection:
+  missing_days_threshold: 3   # gone this many consecutive runs => sold
+
+aging_thresholds: [60, 90]
+
+hero_models:
+  - name: Birkin 25
+    brand: Hermes
+    keywords: ['birkin\s*25\b', '\bb25\b', 'birkin25']
+  - name: Birkin 30
+    brand: Hermes
+    keywords: ['birkin\s*30\b', '\bb30\b', 'birkin30']
+  - name: Kelly 25
+    brand: Hermes
+    keywords: ['kelly\s*25\b', '\bk25\b', 'kelly25']
+  - name: Kelly 28
+    brand: Hermes
+    keywords: ['kelly\s*28\b', '\bk28\b', 'kelly28']
+  - name: Mini Kelly (Kelly 20)
+    brand: Hermes
+    keywords: ['mini\s*kelly', 'kelly\s*20\b', '\bk20\b', 'kelly\s*ii', 'kelly20']
+  - name: Constance 18
+    brand: Hermes
+    keywords: ['constance\s*18\b', '\bc18\b', 'constance18', 'mini\s*constance']
+  - name: Constance 24
+    brand: Hermes
+    keywords: ['constance\s*24\b', '\bc24\b', 'constance24']
+  - name: Chanel Classic Flap Small
+    brand: Chanel
+    keywords: ['classic\s*flap.*\bsmall\b', '\bsmall\b.*classic\s*flap', 'classic\s*small', 'small\s*classic']
+  - name: Chanel Classic Flap Medium
+    brand: Chanel
+    keywords: ['classic\s*flap.*\bmedium\b', '\bmedium\b.*classic\s*flap', 'medium\s*classic', 'classic\s*medium', '\bml\s*classic', 'classic\s*flap\s*ml\b']
+  - name: Chanel Classic Flap Jumbo
+    brand: Chanel
+    keywords: ['jumbo']

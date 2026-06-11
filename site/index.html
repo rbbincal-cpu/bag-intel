@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Market Overview · Bag Intel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<header><div class="header-inner">
+  <h1>Bag<span class="accent">Intel</span></h1>
+  <nav>
+    <a class="active" href="index.html">Overview</a>
+    <a href="competitor.html">Competitors</a>
+    <a href="heroes.html">Hero Models</a>
+  </nav>
+  <span class="updated"></span>
+</div></header>
+<main>
+  <section>
+    <h2>Market Overview</h2>
+    <p class="sub">All stores side by side — ★ is Purse Maison. MTD = month to date (Manila time). Peso values from listed prices.</p>
+    <div class="table-wrap"><table id="overview"></table></div>
+  </section>
+
+  <section>
+    <h2>Trends</h2>
+    <p class="sub">History accumulates from the first scrape onward.</p>
+    <div class="chart-grid">
+      <div class="chart-box"><h3>Inventory value over time</h3><div style="height:280px"><canvas id="chInv"></canvas></div></div>
+      <div class="chart-box"><h3>Listings count over time</h3><div style="height:280px"><canvas id="chCnt"></canvas></div></div>
+      <div class="chart-box"><h3>Sold value — cumulative MTD</h3><div style="height:280px"><canvas id="chSold"></canvas></div></div>
+      <div class="chart-box"><h3>New uploads — cumulative MTD</h3><div style="height:280px"><canvas id="chNew"></canvas></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Upload cadence</h2>
+    <p class="sub">New listings by day of week (all tracked history).</p>
+    <div class="chart-box" style="max-width:760px"><div style="height:260px"><canvas id="chCadence"></canvas></div></div>
+  </section>
+
+  <p class="footnote">Sold = marked sold-out, or delisted for 3+ consecutive daily runs without re-listing.
+  Items already sold-out when tracking began are excluded from sold counts. ₱0 placeholder listings excluded from values.</p>
+</main>
+<script src="app.js"></script>
+<script>
+loadData().then(data => {
+  setUpdated(data);
+  const mp = data.generated.slice(0, 7);
+
+  // ── overview table ──
+  const rows = data.sites.map(s => `
+    <tr class="${s.is_mine ? 'mine' : ''}">
+      <td><a href="competitor.html?site=${s.key}">${esc(s.name)}</a></td>
+      <td>${s.inventory_count.toLocaleString()}</td>
+      <td>${peso(s.inventory_value)}</td>
+      <td>${pesoFull(s.avg_ticket)}</td>
+      <td>${s.sold_mtd_count}</td>
+      <td>${peso(s.sold_mtd_value)}</td>
+      <td>${s.new_mtd_count}</td>
+      <td>${s.avg_days_to_sell ?? '—'}</td>
+      <td>${s.aging60_count} · ${peso(s.aging60_value)}</td>
+      <td>${s.aging90_count} · ${peso(s.aging90_value)}</td>
+      <td>${s.markdowns_mtd}${s.markdowns_mtd ? ` <span class="neg">(−${s.avg_discount_pct}%)</span>` : ''}</td>
+      <td>${['Hermès','Chanel','Louis Vuitton','Other'].map(b => (s.brand_mix[b] ?? 0) + '%').join(' / ')}</td>
+    </tr>`).join('');
+  document.getElementById('overview').innerHTML = `
+    <thead><tr><th>Store</th><th>Items</th><th>Inv. value</th><th>Avg ticket</th>
+    <th>Sold MTD</th><th>Sold ₱ MTD</th><th>New MTD</th><th>Avg DTS</th>
+    <th>60d+ aged</th><th>90d+ aged</th><th>Drops MTD</th><th>H/C/LV/Other</th></tr></thead>
+    <tbody>${rows}</tbody>`;
+
+  // ── trend charts ──
+  const inv = data.series.inventory || {};
+  const mk = (field) => data.sites.filter(s => inv[s.key]).map(s =>
+    ds(s.name, inv[s.key].dates.map((d, i) => ({ x: d, y: inv[s.key][field][i] })),
+       siteColor(data, s.key), s.is_mine));
+  lineChart(document.getElementById('chInv'), mk('value'), { money: true });
+  lineChart(document.getElementById('chCnt'), mk('count'), {});
+  lineChart(document.getElementById('chSold'), data.sites.map(s =>
+    ds(s.name, cumulMTD(data.series.sold, s.key, mp, 'v'), siteColor(data, s.key), s.is_mine)), { money: true });
+  lineChart(document.getElementById('chNew'), data.sites.map(s =>
+    ds(s.name, cumulMTD(data.series.new, s.key, mp, 'c'), siteColor(data, s.key), s.is_mine)), {});
+
+  // ── cadence ──
+  new Chart(document.getElementById('chCadence'), {
+    type: 'bar',
+    data: { labels: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
+      datasets: data.sites.map(s => ({ label: s.name, data: s.cadence,
+        backgroundColor: siteColor(data, s.key) + (s.is_mine ? '' : '99') })) },
+    options: { responsive: true, maintainAspectRatio: false,
+      scales: { y: { grid: { color: '#F0EAE0' } }, x: { grid: { display: false } } },
+      plugins: { legend: { labels: { boxWidth: 10, font: { size: 11 } } } } }
+  });
+}).catch(e => document.querySelector('main').insertAdjacentHTML('afterbegin',
+  `<p style="color:#9F1239">${esc(e.message)}</p>`));
+</script>
+</body>
+</html>

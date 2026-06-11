@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Competitor Detail · Bag Intel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<header><div class="header-inner">
+  <h1>Bag<span class="accent">Intel</span></h1>
+  <nav>
+    <a href="index.html">Overview</a>
+    <a class="active" href="competitor.html">Competitors</a>
+    <a href="heroes.html">Hero Models</a>
+  </nav>
+  <span class="updated"></span>
+</div></header>
+<main>
+  <div class="site-picker" id="picker"></div>
+  <section id="content"></section>
+</main>
+<script src="app.js"></script>
+<script>
+loadData().then(data => {
+  setUpdated(data);
+  const params = new URLSearchParams(location.search);
+  const key = params.get('site') || data.sites[0].key;
+  const site = data.sites.find(s => s.key === key) || data.sites[0];
+  const det = data.competitor_detail[site.key];
+
+  document.getElementById('picker').innerHTML = data.sites.map(s =>
+    `<a href="competitor.html?site=${s.key}" class="${s.key === site.key ? 'active' : ''}">${esc(s.name)}${s.is_mine ? ' ★' : ''}</a>`).join('');
+
+  const soldBrands = Object.entries(site.sold_mtd_brands).map(([b, v]) =>
+    `<tr><td>${esc(b)}</td><td>${v.count}</td><td>${pesoFull(v.value)}</td></tr>`).join('') ||
+    '<tr><td colspan="3">No sales recorded yet this month</td></tr>';
+  const soldModels = Object.entries(site.sold_mtd_models).map(([m, v]) =>
+    `<tr><td>${esc(m)}</td><td>${v.count}</td><td>${pesoFull(v.value)}</td></tr>`).join('') ||
+    '<tr><td colspan="3">—</td></tr>';
+
+  const listings = det.listings.map(p => `
+    <tr>
+      <td class="title-cell"><a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title)}</a></td>
+      <td>${esc(p.brand || '—')}</td>
+      <td>${pesoFull(p.price)}</td>
+      <td>${esc(p.color || '—')}</td>
+      <td>${esc(p.hardware || '—')}</td>
+      <td>${esc(p.leather || '—')}</td>
+      <td>${p.age_days ?? '—'}${p.age_days >= 60 ? ' <span class="badge aged">aged</span>' : ''}</td>
+      <td>${p.status === 'reserved' ? '<span class="badge reserved">hold</span>' : (p.hero ? '<span class="badge">' + esc(p.hero) + '</span>' : '')}</td>
+    </tr>`).join('');
+
+  const solds = det.recent_sold.map(p => `
+    <tr><td class="title-cell">${esc(p.title)}</td><td>${esc(p.brand || '—')}</td>
+    <td>${pesoFull(p.sold_price)}</td><td>${p.sold_date}</td><td>${p.days_to_sell ?? '—'}</td></tr>`).join('') ||
+    '<tr><td colspan="5">No sales detected yet — needs a few daily runs</td></tr>';
+
+  const drops = det.price_drops_mtd.map(d => `
+    <tr><td class="title-cell">${esc(d.title)}</td><td>${d.date}</td>
+    <td>${pesoFull(d.old)}</td><td>${pesoFull(d.new)}</td><td class="neg">${d.pct}%</td></tr>`).join('') ||
+    '<tr><td colspan="5">No markdowns this month</td></tr>';
+
+  document.getElementById('content').innerHTML = `
+    <h2>${esc(site.name)}${site.is_mine ? ' <span class="badge">your store</span>' : ''}</h2>
+    <p class="sub"><a href="${esc(site.url)}" target="_blank" rel="noopener">${esc(site.url)}</a> · tracking since ${site.tracking_since}</p>
+    <div class="cards">
+      <div class="card"><div class="label">Inventory</div><div class="value">${site.inventory_count.toLocaleString()}</div><div class="delta">${peso(site.inventory_value)} total</div></div>
+      <div class="card"><div class="label">Avg ticket</div><div class="value">${peso(site.avg_ticket)}</div></div>
+      <div class="card"><div class="label">Sold MTD</div><div class="value">${site.sold_mtd_count}</div><div class="delta">${peso(site.sold_mtd_value)}</div></div>
+      <div class="card"><div class="label">New MTD</div><div class="value">${site.new_mtd_count}</div><div class="delta">${peso(site.new_mtd_value)}</div></div>
+      <div class="card"><div class="label">Avg days to sell</div><div class="value">${site.avg_days_to_sell ?? '—'}</div></div>
+      <div class="card"><div class="label">Aged 60d+ / 90d+</div><div class="value">${site.aging60_count} / ${site.aging90_count}</div><div class="delta">${peso(site.aging60_value)} / ${peso(site.aging90_value)}</div></div>
+      <div class="card"><div class="label">Markdowns MTD</div><div class="value">${site.markdowns_mtd}</div><div class="delta">${site.markdowns_mtd ? 'avg −' + site.avg_discount_pct + '%' : '—'}</div></div>
+    </div>
+
+    <h3>Sold MTD by brand</h3>
+    <div class="chart-grid">
+      <div class="table-wrap"><table style="min-width:0"><thead><tr><th>Brand</th><th>Count</th><th>Value</th></tr></thead><tbody>${soldBrands}</tbody></table></div>
+      <div class="table-wrap"><table style="min-width:0"><thead><tr><th>Model</th><th>Count</th><th>Value</th></tr></thead><tbody>${soldModels}</tbody></table></div>
+    </div>
+
+    <h3>Recent sales detected</h3>
+    <div class="table-wrap"><table><thead><tr><th>Item</th><th>Brand</th><th>Sold price</th><th>Sold date</th><th>Days to sell</th></tr></thead><tbody>${solds}</tbody></table></div>
+
+    <h3>Price drops MTD</h3>
+    <div class="table-wrap"><table><thead><tr><th>Item</th><th>Date</th><th>Was</th><th>Now</th><th>Δ</th></tr></thead><tbody>${drops}</tbody></table></div>
+
+    <h3>Live listings (${det.listings.length})</h3>
+    <div class="table-wrap" style="max-height:560px;overflow-y:auto"><table>
+      <thead><tr><th>Item</th><th>Brand</th><th>Price</th><th>Color</th><th>Hardware</th><th>Leather</th><th>Days listed</th><th></th></tr></thead>
+      <tbody>${listings}</tbody></table></div>`;
+}).catch(e => document.querySelector('main').insertAdjacentHTML('afterbegin',
+  `<p style="color:#9F1239">${esc(e.message)}</p>`));
+</script>
+</body>
+</html>

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Hero Models · Bag Intel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header><div class="header-inner">
+  <h1>Bag<span class="accent">Intel</span></h1>
+  <nav>
+    <a href="index.html">Overview</a>
+    <a href="competitor.html">Competitors</a>
+    <a class="active" href="heroes.html">Hero Models</a>
+  </nav>
+  <span class="updated"></span>
+</div></header>
+<main>
+  <h2>Hero Models</h2>
+  <p class="sub">Birkin · Kelly · Constance · Chanel Classic Flap — matched on normalized title keywords across all stores.</p>
+  <div id="content"></div>
+  <p class="footnote">Avg sold price and days-to-sell are computed across all detected sales (not just MTD); they fill in as history accumulates.</p>
+</main>
+<script src="app.js"></script>
+<script>
+loadData().then(data => {
+  setUpdated(data);
+  document.getElementById('content').innerHTML = data.heroes.map(h => {
+    const sites = Object.entries(h.per_site);
+    const soldMTD = sites.reduce((a, [, v]) => a + v.sold_mtd, 0);
+    const rows = sites.flatMap(([key, v]) =>
+      v.listings.map(p => `
+        <tr class="${v.is_mine ? 'mine' : ''}">
+          <td>${esc(v.site_name)}</td>
+          <td class="title-cell"><a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title)}</a></td>
+          <td>${pesoFull(p.price)}${p.price === h.lowest_ask ? ' <span class="badge">lowest</span>' : ''}</td>
+          <td>${esc(p.color || '—')}</td>
+          <td>${esc(p.hardware || '—')}</td>
+          <td>${esc(p.leather || '—')}</td>
+          <td>${p.age_days ?? '—'}</td>
+          <td>${p.status === 'reserved' ? '<span class="badge reserved">hold</span>' : ''}</td>
+        </tr>`)).join('');
+    const perSite = sites.map(([key, v]) => `
+      <tr class="${v.is_mine ? 'mine' : ''}">
+        <td>${esc(v.site_name)}</td>
+        <td>${v.listings.length}</td>
+        <td>${v.sold_mtd}</td>
+        <td>${v.avg_sold_price ? pesoFull(v.avg_sold_price) : '—'}</td>
+        <td>${v.avg_days_to_sell ?? '—'}</td>
+      </tr>`).join('');
+    return `
+    <div class="hero-block">
+      <div class="hero-head">
+        <h3>${esc(h.name)}</h3>
+        <span class="hero-stats"><b>${h.live_count}</b> live · sold MTD <b>${soldMTD}</b>
+          · ask range <b>${pesoFull(h.lowest_ask)}</b> – <b>${pesoFull(h.highest_ask)}</b></span>
+      </div>
+      <div class="table-wrap" style="margin-bottom:12px"><table style="min-width:520px">
+        <thead><tr><th>Store</th><th>Live</th><th>Sold MTD</th><th>Avg sold price</th><th>Avg days to sell</th></tr></thead>
+        <tbody>${perSite}</tbody></table></div>
+      ${rows ? `<div class="table-wrap"><table>
+        <thead><tr><th>Store</th><th>Listing</th><th>Ask</th><th>Color</th><th>Hardware</th><th>Leather</th><th>Days listed</th><th></th></tr></thead>
+        <tbody>${rows}</tbody></table></div>` : '<p class="sub">No live listings anywhere right now.</p>'}
+    </div>`;
+  }).join('');
+}).catch(e => document.querySelector('main').insertAdjacentHTML('afterbegin',
+  `<p style="color:#9F1239">${esc(e.message)}</p>`));
+</script>
+</body>
+</html>
