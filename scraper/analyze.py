@@ -57,7 +57,8 @@ def main():
     prods = [dict(r) for r in db.execute("SELECT * FROM products").fetchall()]
     by_site = defaultdict(list)
     for p in prods:
-        p["hero"] = match_hero(matchers, p["brand"], p["norm_title"])
+        p["hero"] = match_hero(matchers, p["brand"], p["norm_title"]) \
+            if p["category"] == "Bags" else None
         by_site[p["site"]].append(p)
 
     # first run date per site (items first_seen that day predate tracking)
