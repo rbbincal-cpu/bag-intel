@@ -2,7 +2,9 @@ name: Daily market scrape
 
 on:
   schedule:
-    - cron: "0 22 * * *"   # 22:00 UTC = 06:00 Asia/Manila
+    # Off-peak minutes — GitHub drops top-of-hour crons under load
+    - cron: "23 22 * * *"  # 22:23 UTC = 06:23 Asia/Manila
+    - cron: "23 23 * * *"  # backup pass 1h later (pipeline is idempotent)
   workflow_dispatch:
 
 permissions:

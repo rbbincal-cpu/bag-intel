@@ -178,9 +178,12 @@ def ingest_site(db, site, products, today, cfg, sess=None):
         (key, key, today)).fetchall()
 
     threshold = cfg["sold_detection"]["missing_days_threshold"]
+    from datetime import date as _date
     for row in gone:
-        streak = (row["missing_streak"] or 0) + 1
         first_missing = row["first_missing_date"] or today
+        # calendar-based streak: idempotent if the scrape runs twice in a day
+        streak = (_date.fromisoformat(today)
+                  - _date.fromisoformat(first_missing)).days + 1
         if streak >= threshold:
             # check re-list: a later-arriving listing with same title/image,
             # whose first snapshot falls on/after the day this one vanished
