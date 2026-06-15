@@ -73,12 +73,25 @@ hero_models:
   - name: Constance 24
     brand: Hermes
     keywords: ['constance\s*24\b', '\bc24\b', 'constance24']
-  - name: Chanel Classic Flap Small
+  # Chanel "Classic Double Flap". Stores write the three words (classic / double /
+  # flap) and the size in EVERY possible order, e.g.:
+  #   "Classic Double Flap Medium ..."        (Purse Maison)
+  #   "Medium Double Flap ..."                (Orange Box)
+  #   "... Medium Classic Double Flap Bag"    (The Bag Hub)
+  #   "Chanel Classic Medium Flap ..."        (Shop with K — size BETWEEN classic & flap)
+  #   "Chanel Classic Small Flap ..."         (Shop with K)
+  #   "Chanel Classic Jumbo Flap ..."         (Shop with K)
+  # Adjacency-based regexes can't catch all of these, so each size uses
+  # presence lookaheads: the title must contain "flap" AND ("classic" OR
+  # "double") AND the size word, in any arrangement. This excludes non-classic
+  # flaps that lack both "classic" and "double" — "Easy Flap", "Mini/Rectangular
+  # Flap", "Reissue", "Pearl Handle ... Flap".
+  - name: Chanel Double Flap Small
     brand: Chanel
-    keywords: ['classic\s*flap.*\bsmall\b', '\bsmall\b.*classic\s*flap', 'classic\s*small', 'small\s*classic']
-  - name: Chanel Classic Flap Medium
+    keywords: ['(?=.*flap)(?=.*(?:classic|double))(?=.*\bsmall\b)']
+  - name: Chanel Double Flap Medium
     brand: Chanel
-    keywords: ['classic\s*flap.*\bmedium\b', '\bmedium\b.*classic\s*flap', 'medium\s*classic', 'classic\s*medium', '\bml\s*classic', 'classic\s*flap\s*ml\b']
-  - name: Chanel Classic Flap Jumbo
+    keywords: ['(?=.*flap)(?=.*(?:classic|double))(?=.*\b(?:medium|m l)\b)']
+  - name: Chanel Double Flap Jumbo
     brand: Chanel
-    keywords: ['jumbo']
+    keywords: ['(?=.*flap)(?=.*(?:classic|double))(?=.*\bjumbo\b)', '\bjumbo\b']
