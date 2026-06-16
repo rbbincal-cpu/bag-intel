@@ -34,6 +34,11 @@ sites:
     base_url: https://luxurywish.com.ph
     is_mine: false
     brand_source: vendor
+  - key: aandjluxury
+    name: A&J Luxury
+    base_url: https://aandjluxury.com
+    is_mine: false
+    brand_source: vendor   # vendor field holds the real brand (tags empty)
 
 scrape:
   page_limit: 250
