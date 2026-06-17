@@ -56,8 +56,21 @@ jobs:
           git config user.name "bag-intel-bot"
           git config user.email "actions@github.com"
           git add data/market.db exports site/data.json
-          git diff --cached --quiet || git commit -m "Daily snapshot $(TZ=Asia/Manila date +%F)"
-          git push
+          # Nothing to commit (e.g. all sites unchanged) => succeed quietly
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
+          git commit -m "Daily snapshot $(TZ=Asia/Manila date +%F)"
+          # Push can be rejected if another commit (a config edit, or an overlapping
+          # run) landed on main meanwhile. Rebase onto the latest main and retry
+          # instead of failing the whole run. The snapshot only touches data/exports,
+          # so a rebase over unrelated commits applies cleanly.
+          for i in 1 2 3 4 5; do
+            if git push; then exit 0; fi
+            echo "Push rejected (attempt $i) — rebasing onto origin/main and retrying…"
+            git pull --rebase --autostash origin main || true
+            sleep $(( (RANDOM % 5) + 2 ))
+          done
+          echo "::error::Could not push snapshot after 5 rebase/retry attempts" >&2
+          exit 1
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
