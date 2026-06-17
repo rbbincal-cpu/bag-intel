@@ -43,10 +43,18 @@ BASE = {
     ],
     "baghub": [product(21, "Hermes Mini Kelly Gold Epsom GHW", 1900000,
                        vendor="The Bag Hub", tags=["Hermes"])],
-    "shopwithk": [product(31, "Chanel Classic Flap Small Beige", 480000,
+    "shopwithk": [product(31, "Chanel Classic Double Flap Small in Navy Caviar GHW", 480000,
                           vendor="Shop with K", tags=["chanel"])],
     "luxurywish": [product(41, "HOLD | Kelly 25 Sellier Noir Epsom GHW", 1700000,
                            vendor="Hermès")],
+    "aandjluxury": [
+        # vendor holds the brand; titles use "[PRE LOVED]" prefix and the
+        # interleaved "Classic <size> Double Flap" word order
+        product(51, "[PRE LOVED] Chanel Classic Medium Double Flap in Navy Caviar LGHW",
+                520000, vendor="Chanel"),
+        product(52, "[PRE LOVED] Hermes Constance 24 in Black Epsom GHW (Stamp C)",
+                1100000, vendor="Hermes"),
+    ],
 }
 
 
@@ -81,7 +89,7 @@ def main():
     # Day 1 — first scrape
     write_fixtures(cat)
     run_day("2026-06-01")
-    assert len(q("SELECT * FROM products")) == 11
+    assert len(q("SELECT * FROM products")) == 13   # 5+3+1+1+1+2 across six stores
     r = q("SELECT * FROM products WHERE product_id=41")[0]
     assert r["status"] == "reserved", r["status"]
 
@@ -146,6 +154,8 @@ def main():
     bh = next(s for s in data["sites"] if s["key"] == "baghub")
     assert bh["sold_mtd_count"] == 0      # relist must NOT count as sale
     assert bh["inventory_count"] == 1
+    aj = next(s for s in data["sites"] if s["key"] == "aandjluxury")
+    assert aj["inventory_count"] == 2     # 6th store ingested via vendor brand_source
 
     heroes = {h["name"]: h for h in data["heroes"]}
     assert heroes["Birkin 25"]["per_site"]["pursemaison"]["sold_mtd"] == 1
@@ -153,9 +163,15 @@ def main():
     assert heroes["Kelly 25"]["per_site"]["luxurywish"]["listings"], "K25 should be live"
     mk = heroes["Mini Kelly (Kelly 20)"]
     assert mk["lowest_ask"] == 1950000 and mk["live_count"] == 1
-    cf = heroes["Chanel Classic Flap Medium"]
-    assert cf["per_site"]["pursemaison"]["listings"], "CF Medium should match"
-    assert heroes["Chanel Classic Flap Jumbo"]["per_site"]["orangebox"]["listings"]
+    cf = heroes["Chanel Double Flap Medium"]
+    assert cf["per_site"]["pursemaison"]["listings"], "Double Flap Medium should match"
+    assert heroes["Chanel Double Flap Jumbo"]["per_site"]["orangebox"]["listings"]
+    # regression: "Classic DOUBLE Flap Small" must match (old 'classic\s*flap' did not)
+    assert heroes["Chanel Double Flap Small"]["per_site"]["shopwithk"]["listings"], \
+        "Double Flap Small should match the 'Classic Double Flap Small' title"
+    # interleaved word order "Classic Medium Double Flap" (A&J Luxury) must match
+    assert heroes["Chanel Double Flap Medium"]["per_site"]["aandjluxury"]["listings"], \
+        "Double Flap Medium should match A&J's 'Classic Medium Double Flap' title"
 
     # attribute extraction spot checks
     rows = {r["product_id"]: r for r in q("SELECT * FROM products WHERE site='pursemaison'")}
