@@ -3,7 +3,7 @@ import json
 import os
 import re
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -228,6 +228,108 @@ def main():
     # exclude each site's first-run bulk import from "new uploads"
     data["series"]["new"] = [dict(r) for r in new_rows
                              if r["d"] and r["d"] > first_run.get(r["site"], "")]
+
+    # ── benchmark: monthly sold-per-store, sold-product feed, insights ──────
+    pesoF = lambda n: "₱{:,}".format(int(round(n)))
+    cur = today[:7]
+    all_sold = [p for p in prods if p["status"] in ("sold", "sold_out") and p["sold_date"]]
+
+    by_site_month = defaultdict(lambda: defaultdict(lambda: [0, 0.0]))
+    months_set = set()
+    for p in all_sold:
+        m = p["sold_date"][:7]
+        months_set.add(m)
+        cell = by_site_month[p["site"]][m]
+        cell[0] += 1
+        cell[1] += vp(p["sold_price"])
+    months = sorted(months_set)
+    totals_month = {m: {"count": 0, "value": 0.0} for m in months}
+    bsm_json = {}
+    for skey, mm in by_site_month.items():
+        bsm_json[skey] = {}
+        for m, (c, v) in mm.items():
+            bsm_json[skey][m] = {"count": c, "value": round(v)}
+            totals_month[m]["count"] += c
+            totals_month[m]["value"] += v
+    for m in totals_month:
+        totals_month[m]["value"] = round(totals_month[m]["value"])
+    data["benchmark"] = {"months": months, "by_site_month": bsm_json,
+                         "totals_month": totals_month}
+
+    data["sold_feed"] = [{
+        "site": p["site"], "site_name": sites[p["site"]]["name"],
+        "is_mine": sites[p["site"]].get("is_mine", False),
+        "title": p["title"], "brand": p["brand"], "model": p["model"],
+        "sold_price": p["sold_price"] if valid(p["sold_price"]) else None,
+        "sold_date": p["sold_date"], "days_to_sell": p["days_to_sell"],
+        "url": p["url"],
+    } for p in sorted(all_sold, key=lambda x: x["sold_date"], reverse=True)[:400]]
+
+    # data-derived business insights for the current month
+    insights = []
+    cur_sold = [p for p in all_sold if p["sold_date"][:7] == cur]
+    pm_key = next((k for k, s in sites.items() if s.get("is_mine")), None)
+    pm_name = sites[pm_key]["name"] if pm_key else "your store"
+
+    site_cnt = Counter(p["site"] for p in cur_sold)
+    if site_cnt:
+        ranked = site_cnt.most_common()
+        lk, ln = ranked[0]
+        txt = f"{sites[lk]['name']} leads this month with {ln} sold."
+        if pm_key:
+            pm_n = site_cnt.get(pm_key, 0)
+            pm_rank = next((i + 1 for i, (k, _) in enumerate(ranked) if k == pm_key), None)
+            txt += (f" {pm_name}: {pm_n} sold (#{pm_rank} of {len(sites)})." if pm_n
+                    else f" {pm_name} has no recorded sales yet this month.")
+        insights.append({"cat": "Sell-through", "text": txt})
+        site_dts = defaultdict(list)
+        for p in cur_sold:
+            if p["days_to_sell"] is not None:
+                site_dts[p["site"]].append(p["days_to_sell"])
+        avg_dts = {k: sum(v) / len(v) for k, v in site_dts.items() if v}
+        if avg_dts:
+            fk = min(avg_dts, key=avg_dts.get)
+            insights.append({"cat": "Sell-through",
+                "text": f"Fastest turnaround: {sites[fk]['name']} at {avg_dts[fk]:.1f} days avg to sell."})
+
+    bm_cnt = Counter(f"{p['brand'] or ''} {p['model'] or ''}".strip() or "Other" for p in cur_sold)
+    if bm_cnt:
+        top = ", ".join(f"{lbl} ({c})" for lbl, c in bm_cnt.most_common(3))
+        insights.append({"cat": "Top sellers", "text": f"Hottest models this month: {top}."})
+
+    for h in data["heroes"]:
+        ps = h["per_site"].get(pm_key, {}) if pm_key else {}
+        yours = [l["price"] for l in ps.get("listings", []) if l.get("price")]
+        other = [l["price"] for k, v in h["per_site"].items() if k != pm_key
+                 for l in v.get("listings", []) if l.get("price")]
+        if yours and other:
+            ymin, omin = min(yours), min(other)
+            if omin:
+                pct = (ymin - omin) / omin * 100
+                pos = "above" if pct >= 0 else "below"
+                insights.append({"cat": "Pricing",
+                    "text": f"{h['name']}: your ask {pesoF(ymin)} is {abs(pct):.0f}% {pos} the market low {pesoF(omin)}."})
+
+    if pm_key:
+        pm_inv = [p for p in by_site.get(pm_key, [])
+                  if p["status"] in UNSOLD and valid(p["current_price"])]
+        pm_aging = [p for p in pm_inv if p["first_seen"] and p["first_seen"] <= d90]
+        if pm_aging:
+            val = sum(p["current_price"] for p in pm_aging)
+            insights.append({"cat": "Inventory",
+                "text": f"{len(pm_aging)} of your listings have sat 90+ days (~{pesoF(val)} tied up). Consider markdowns or promotion."})
+        mkt_bm = Counter((p["brand"], p["model"]) for p in cur_sold if p["model"])
+        pm_live_bm = {(p["brand"], p["model"]) for p in pm_inv}
+        restock = [bm for bm, c in mkt_bm.most_common() if c >= 2 and bm not in pm_live_bm]
+        if restock:
+            names = ", ".join(f"{b or ''} {m or ''}".strip() for b, m in restock[:3])
+            insights.append({"cat": "Inventory",
+                "text": f"Selling across the market but missing from your shelves: {names}. Restock candidates."})
+
+    if not insights:
+        insights.append({"cat": "Heads-up",
+            "text": "Not enough sales history yet for insights — these populate as data accumulates over the coming weeks."})
+    data["insights"] = insights
 
     out = os.path.join(ROOT, "site", "data.json")
     os.makedirs(os.path.dirname(out), exist_ok=True)
