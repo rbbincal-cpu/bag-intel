@@ -33,7 +33,7 @@ All five monitored stores run on Shopify, so data comes from each store's public
 - **Competitors** — per-store detail: KPI cards, sold-by-brand/model, recent
   sales, price drops, full live listing table with color/hardware/leather.
 - **Hero Models** — Birkin 25/30, Kelly 25/28/Mini, Constance 18/24, Chanel
-  Classic Flap S/M/Jumbo: listings per store with attributes, sold MTD,
+  Double Flap S/M/Jumbo: listings per store with attributes, sold MTD,
   avg sold price, avg days-to-sell, lowest/highest ask across the market.
 
 ## Setup (one time)
@@ -44,7 +44,27 @@ All five monitored stores run on Shopify, so data comes from each store's public
 3. Repo **Settings → Actions → General → Workflow permissions:
    Read and write permissions**.
 4. Run the workflow once manually: **Actions → Daily market scrape →
-   Run workflow**. The schedule then runs daily at 6AM Manila.
+   Run workflow**. The schedule then runs every 6 hours (Manila 02/08/14/20:23).
+
+## Database backup to Google Drive (optional)
+
+Each run can copy `data/market.db` to a Google Drive folder you own
+(`market-YYYY-MM-DD.db` + a rolling `market-latest.db`). It stays off until
+two repo secrets are set, so it never breaks a run.
+
+One-time setup:
+
+1. In **Google Cloud Console** create a project → enable the **Google Drive API**.
+2. Create a **Service Account**, then add a **JSON key** and download it.
+3. In **Google Drive**, make a folder (e.g. "Bag Intel backups"), **Share** it
+   (Editor) with the service account's email (`...@...iam.gserviceaccount.com`),
+   and copy the folder ID from its URL (`drive.google.com/drive/folders/<ID>`).
+4. In the repo: **Settings → Secrets and variables → Actions → New repository
+   secret**, add:
+   - `GDRIVE_SA_JSON` — paste the full JSON key file contents.
+   - `GDRIVE_FOLDER_ID` — the folder ID from step 3.
+
+The next run will start uploading automatically. Remove either secret to disable.
 
 Local run (optional):
 
