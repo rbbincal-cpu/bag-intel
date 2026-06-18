@@ -2,11 +2,11 @@ name: Daily market scrape
 
 on:
   schedule:
-    # Every 3 hours, at :23 (off-peak minute — GitHub drops top-of-hour crons under load).
-    # = 8 runs/day at UTC 00/03/06/09/12/15/18/21:23 (Manila 08/11/14/17/20/23/02/05:23).
-    # Sold-detection is calendar-day based, so a higher run frequency does NOT change the
+    # Every 6 hours, at :23 (off-peak minute — GitHub drops top-of-hour crons under load).
+    # = 4 runs/day at UTC 00/06/12/18:23 (Manila 08/14/20/02:23).
+    # Sold-detection is calendar-day based, so run frequency does NOT change the
     # 3-day "missing => sold" rule; extra same-day runs are idempotent.
-    - cron: "23 */3 * * *"
+    - cron: "23 */6 * * *"
   workflow_dispatch:
 
 permissions:
