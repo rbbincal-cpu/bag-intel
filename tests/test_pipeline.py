@@ -173,6 +173,16 @@ def main():
     assert heroes["Chanel Double Flap Medium"]["per_site"]["aandjluxury"]["listings"], \
         "Double Flap Medium should match A&J's 'Classic Medium Double Flap' title"
 
+    # ── benchmark tab data ──
+    bmk = data["benchmark"]
+    assert bmk["months"] == ["2026-06"], bmk["months"]
+    assert bmk["by_site_month"]["pursemaison"]["2026-06"]["count"] == 1
+    assert bmk["by_site_month"]["orangebox"]["2026-06"]["count"] == 1
+    assert bmk["totals_month"]["2026-06"]["count"] == 2
+    assert len(data["sold_feed"]) == 2
+    assert any("Birkin 25" in x["title"] for x in data["sold_feed"])
+    assert isinstance(data["insights"], list) and data["insights"]
+
     # attribute extraction spot checks
     rows = {r["product_id"]: r for r in q("SELECT * FROM products WHERE site='pursemaison'")}
     assert rows[1]["hardware"] == "Gold" and rows[1]["leather"] == "Togo"
