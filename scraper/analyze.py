@@ -4,7 +4,8 @@ import os
 import re
 import sys
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import ROOT, get_db, load_config, manila_today
@@ -50,8 +51,12 @@ def main():
     valid = lambda x: x is not None and 0 < x < maxp
     vp = lambda x: x if valid(x) else 0
 
+    # wall-clock Manila timestamp of THIS run (date + time), for the dashboard header
+    generated_at = datetime.now(ZoneInfo(cfg.get("timezone", "Asia/Manila"))).strftime("%Y-%m-%d %H:%M")
+
     sites = {s["key"]: s for s in cfg["sites"]}
-    data = {"generated": today, "currency": cfg.get("currency", "PHP"),
+    data = {"generated": today, "generated_at": generated_at,
+            "currency": cfg.get("currency", "PHP"),
             "sites": [], "heroes": [], "series": {}, "competitor_detail": {}}
 
     prods = [dict(r) for r in db.execute("SELECT * FROM products").fetchall()]
