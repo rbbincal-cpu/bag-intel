@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Benchmark · Bag Intel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+  .insight-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+  .insight{background:#fff;border:1px solid #E7DFD2;border-radius:10px;padding:14px 16px}
+  .insight .tag{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#B08D3E}
+  .insight p{margin:.4rem 0 0;font-size:14px;line-height:1.45}
+  .filter-row{margin:.5rem 0 1rem;font-size:14px}
+  .filter-row select{padding:4px 8px;font:inherit;border:1px solid #D8CEBE;border-radius:6px;background:#fff}
+  td.num,th.num{text-align:right}
+</style>
+</head>
+<body>
+<header><div class="header-inner">
+  <h1>Bag<span class="accent">Intel</span></h1>
+  <nav>
+    <a href="index.html">Overview</a>
+    <a href="competitor.html">Competitors</a>
+    <a href="heroes.html">Hero Models</a>
+    <a class="active" href="benchmark.html">Benchmark</a>
+  </nav>
+  <span class="updated"></span>
+</div></header>
+<main>
+  <section>
+    <h2>Monthly Sales Benchmark</h2>
+    <p class="sub">Units sold &amp; value per store, month over month — your long-term yardstick across 2026, 2027 and beyond.
+    ★ is Purse Maison. Competitor sales are inferred from de-listings (a strong signal, not audited revenue); your own store is exact.</p>
+    <div class="chart-box" style="max-width:920px"><div style="height:300px"><canvas id="chMonthly"></canvas></div></div>
+    <div class="table-wrap" style="margin-top:1rem"><table id="monthlyTbl"></table></div>
+  </section>
+
+  <section>
+    <h2>What Sold</h2>
+    <p class="sub">Every item recorded as sold, newest first. Filter by month.</p>
+    <div class="filter-row">Month: <select id="monthFilter"></select> <span id="feedCount" class="sub"></span></div>
+    <div class="table-wrap"><table id="soldTbl"></table></div>
+  </section>
+
+  <section>
+    <h2>Business Insights</h2>
+    <p class="sub">Auto-generated from this month's data — sell-through, top sellers, pricing position, and inventory signals.</p>
+    <div id="insights" class="insight-grid"></div>
+  </section>
+
+  <p class="footnote">History starts 11 Jun 2026. Months accumulate automatically; year-over-year comparison strengthens over time.
+  ₱0 placeholder listings are excluded from values.</p>
+</main>
+<script src="app.js"></script>
+<script>
+loadData().then(data => {
+  setUpdated(data);
+  const bm = data.benchmark || {months:[],by_site_month:{},totals_month:{}};
+  const sites = data.sites;
+  const monthsAsc = bm.months || [];
+  const monthsDesc = monthsAsc.slice().reverse();
+  const cell = (k, m) => (bm.by_site_month[k] && bm.by_site_month[k][m]) || {count:0, value:0};
+
+  // ── monthly chart: units sold per store ──
+  if (monthsAsc.length) {
+    new Chart(document.getElementById('chMonthly'), {
+      type: 'bar',
+      data: { labels: monthsAsc,
+        datasets: sites.map(s => ({ label: s.name,
+          data: monthsAsc.map(m => cell(s.key, m).count),
+          backgroundColor: siteColor(data, s.key) + (s.is_mine ? '' : '99') })) },
+      options: { responsive: true, maintainAspectRatio: false,
+        scales: { y: { title:{display:true,text:'Units sold'}, grid:{color:'#F0EAE0'}, beginAtZero:true },
+                  x: { grid:{display:false} } },
+        plugins: { legend: { labels: { boxWidth: 10, font: { size: 11 } } } } }
+    });
+  } else {
+    document.getElementById('chMonthly').closest('.chart-box').innerHTML =
+      '<p class="sub">No sales recorded yet — this fills in within a few days of tracking.</p>';
+  }
+
+  // ── monthly table: month rows, store cols (units · ₱), + total ──
+  const head = `<thead><tr><th>Month</th>${sites.map(s =>
+      `<th class="num">${esc(s.name)}${s.is_mine ? ' ★' : ''}</th>`).join('')}<th class="num">Total</th></tr></thead>`;
+  const body = monthsDesc.map(m => {
+    const tot = bm.totals_month[m] || {count:0, value:0};
+    return `<tr><td>${m}</td>${sites.map(s => {
+      const c = cell(s.key, m);
+      return `<td class="num">${c.count ? c.count + ' · ' + peso(c.value) : '—'}</td>`;
+    }).join('')}<td class="num"><strong>${tot.count} · ${peso(tot.value)}</strong></td></tr>`;
+  }).join('') || `<tr><td colspan="${sites.length + 2}">No sales recorded yet.</td></tr>`;
+  document.getElementById('monthlyTbl').innerHTML = head + '<tbody>' + body + '</tbody>';
+
+  // ── what sold: feed + month filter ──
+  const feed = data.sold_feed || [];
+  const sel = document.getElementById('monthFilter');
+  sel.innerHTML = '<option value="">All months</option>' +
+    monthsDesc.map(m => `<option value="${m}">${m}</option>`).join('');
+  function renderFeed(mf) {
+    const rows = feed.filter(p => !mf || (p.sold_date || '').startsWith(mf));
+    document.getElementById('feedCount').textContent = rows.length + ' item' + (rows.length === 1 ? '' : 's');
+    document.getElementById('soldTbl').innerHTML = `
+      <thead><tr><th>Sold date</th><th>Store</th><th>Item</th><th>Brand / Model</th>
+      <th class="num">Sold ₱</th><th class="num">Days to sell</th></tr></thead><tbody>` +
+      (rows.map(p => `<tr class="${p.is_mine ? 'mine' : ''}">
+        <td>${p.sold_date}</td><td>${esc(p.site_name)}${p.is_mine ? ' ★' : ''}</td>
+        <td class="title-cell">${p.url ? `<a href="${p.url}" target="_blank" rel="noopener">${esc(p.title)}</a>` : esc(p.title)}</td>
+        <td>${esc((p.brand || '') + (p.model ? ' · ' + p.model : '') || '—')}</td>
+        <td class="num">${pesoFull(p.sold_price)}</td><td class="num">${p.days_to_sell ?? '—'}</td></tr>`).join('')
+        || `<tr><td colspan="6">No sales in this period yet.</td></tr>`) + '</tbody>';
+  }
+  sel.onchange = () => renderFeed(sel.value);
+  renderFeed('');
+
+  // ── insights ──
+  const ins = data.insights || [];
+  document.getElementById('insights').innerHTML = ins.map(i =>
+    `<div class="insight"><span class="tag">${esc(i.cat)}</span><p>${esc(i.text)}</p></div>`).join('');
+}).catch(e => document.querySelector('main').insertAdjacentHTML('afterbegin',
+  `<p style="color:#9F1239">${esc(e.message)}</p>`));
+</script>
+</body>
+</html>
