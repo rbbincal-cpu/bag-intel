@@ -58,7 +58,7 @@ loadData().then(data => {
   const solds = det.recent_sold.map(p => `
     <tr><td class="title-cell">${esc(p.title)}</td><td>${esc(p.brand || '—')}</td>
     <td>${pesoFull(p.sold_price)}</td><td>${p.sold_date}</td><td>${p.days_to_sell ?? '—'}</td></tr>`).join('') ||
-    '<tr><td colspan="5">No sales detected yet — needs a few daily runs</td></tr>';
+    '<tr><td colspan="5">No sales detected yet — needs a few days of tracking</td></tr>';
 
   const drops = det.price_drops_mtd.map(d => `
     <tr><td class="title-cell">${esc(d.title)}</td><td>${d.date}</td>
