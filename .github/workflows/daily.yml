@@ -51,6 +51,30 @@ jobs:
       - name: Prune old exports (keep 30 days)
         run: ls -1t exports/*.xlsx 2>/dev/null | tail -n +31 | xargs -r rm --
 
+      # Daily off-site backup of the database to Google Drive. No-ops until the
+      # GDRIVE_SA_JSON (and GDRIVE_FOLDER_ID) repo secrets are configured, so it
+      # never breaks a run. Writes one dated copy per day + a rolling "latest".
+      - name: Backup database to Google Drive
+        env:
+          GDRIVE_SA_JSON: ${{ secrets.GDRIVE_SA_JSON }}
+          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+        run: |
+          if [ -z "$GDRIVE_SA_JSON" ] || [ -z "$GDRIVE_FOLDER_ID" ]; then
+            echo "Google Drive secrets not set — skipping backup (see README to enable)."
+            exit 0
+          fi
+          sudo apt-get update -qq && sudo apt-get install -y -qq rclone
+          printf '%s' "$GDRIVE_SA_JSON" > /tmp/gdrive-sa.json
+          export RCLONE_CONFIG_GD_TYPE=drive
+          export RCLONE_CONFIG_GD_SCOPE=drive
+          export RCLONE_CONFIG_GD_SERVICE_ACCOUNT_FILE=/tmp/gdrive-sa.json
+          export RCLONE_CONFIG_GD_ROOT_FOLDER_ID="$GDRIVE_FOLDER_ID"
+          STAMP=$(TZ=Asia/Manila date +%F)
+          rclone copyto data/market.db "gd:market-$STAMP.db" --no-traverse
+          rclone copyto data/market.db "gd:market-latest.db" --no-traverse
+          rm -f /tmp/gdrive-sa.json
+          echo "Backed up market.db to Google Drive (market-$STAMP.db + market-latest.db)."
+
       - name: Commit DB + exports
         run: |
           git config user.name "bag-intel-bot"
