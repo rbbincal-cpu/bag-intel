@@ -16,7 +16,7 @@ async function loadData() {
 
 function setUpdated(data) {
   const el = document.querySelector('.updated');
-  if (el) el.textContent = 'Updated ' + (data.generated_at || data.generated) + ' PHT · refreshes every 3h';
+  if (el) el.textContent = 'Updated ' + (data.generated_at || data.generated) + ' PHT · refreshes every 6h';
 }
 
 function siteColor(data, key) {
