@@ -55,6 +55,13 @@ BASE = {
         product(52, "[PRE LOVED] Hermes Constance 24 in Black Epsom GHW (Stamp C)",
                 1100000, vendor="Hermes"),
     ],
+    "missmanilaluxe": [
+        # vendor = store name, tags = SKU codes => brand is read from the title
+        product(61, "Chanel Double Flap Gray", 99000,
+                vendor="Miss Manila Luxe", tags=["MMLD2588"]),
+        product(62, "Balenciaga Classic City Purple", 49000,
+                vendor="Miss Manila Luxe", tags=["MMLD2347"]),
+    ],
 }
 
 
@@ -89,7 +96,7 @@ def main():
     # Day 1 — first scrape
     write_fixtures(cat)
     run_day("2026-06-01")
-    assert len(q("SELECT * FROM products")) == 13   # 5+3+1+1+1+2 across six stores
+    assert len(q("SELECT * FROM products")) == 15   # 5+3+1+1+1+2+2 across seven stores
     r = q("SELECT * FROM products WHERE product_id=41")[0]
     assert r["status"] == "reserved", r["status"]
 
@@ -156,6 +163,10 @@ def main():
     assert bh["inventory_count"] == 1
     aj = next(s for s in data["sites"] if s["key"] == "aandjluxury")
     assert aj["inventory_count"] == 2     # 6th store ingested via vendor brand_source
+    mml = next(s for s in data["sites"] if s["key"] == "missmanilaluxe")
+    assert mml["inventory_count"] == 2    # 7th store; brand read from title
+    mml_rows = {r["product_id"]: r for r in q("SELECT * FROM products WHERE site='missmanilaluxe'")}
+    assert mml_rows[61]["brand"] == "Chanel" and mml_rows[62]["brand"] == "Balenciaga"
 
     heroes = {h["name"]: h for h in data["heroes"]}
     assert heroes["Birkin 25"]["per_site"]["pursemaison"]["sold_mtd"] == 1
