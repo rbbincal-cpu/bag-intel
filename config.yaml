@@ -39,6 +39,11 @@ sites:
     base_url: https://aandjluxury.com
     is_mine: false
     brand_source: vendor   # vendor field holds the real brand (tags empty)
+  - key: missmanilaluxe
+    name: Miss Manila Luxe
+    base_url: https://www.missmanilaluxe.com
+    is_mine: false
+    brand_source: title    # vendor = store name, tags = SKU codes; brand is in the title
 
 scrape:
   page_limit: 250
