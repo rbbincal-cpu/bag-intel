@@ -55,9 +55,11 @@ scrape:
   respect_robots: true
   image_hash: true          # perceptual-hash first image of newly seen products
   image_hash_width: 128
+  image_hash_budget_seconds: 480   # cap photo-fingerprinting per run (protects against
+                                   # job timeout when first adding a large store)
 
 sold_detection:
-  missing_days_threshold: 3   # gone this many consecutive runs => sold
+  missing_days_threshold: 3   # gone this many calendar days => sold (run frequency-independent)
 
 aging_thresholds: [60, 90]
 
