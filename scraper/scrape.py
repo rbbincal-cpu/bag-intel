@@ -27,6 +27,13 @@ try:
 except ImportError:
     HAS_IMAGEHASH = False
 
+# Wall-clock cutoff for image fingerprinting. Set in main() from config. On a
+# store's FIRST scrape every product is new and gets its photo fingerprinted,
+# which is slow for big catalogs; this caps that cost so a run can never run
+# long enough to hit the job timeout (a timed-out run = stale dashboard).
+# Products past the budget are still tracked and still matched on title.
+_IMG_DEADLINE = None
+
 
 def session_for(cfg):
     s = requests.Session()
@@ -70,6 +77,8 @@ def fetch_catalog(sess, site, cfg):
 def image_hash_for(sess, src, width):
     if not (HAS_IMAGEHASH and src):
         return None
+    if _IMG_DEADLINE is not None and time.monotonic() > _IMG_DEADLINE:
+        return None  # over the per-run image-hash budget — skip (title match still applies)
     try:
         sep = "&" if "?" in src else "?"
         r = sess.get(f"{src}{sep}width={width}", timeout=20)
@@ -248,6 +257,10 @@ def main():
 
     cfg = load_config()
     today = manila_today(cfg)
+    budget = cfg["scrape"].get("image_hash_budget_seconds")
+    if budget:
+        global _IMG_DEADLINE
+        _IMG_DEADLINE = time.monotonic() + budget
     db = get_db()
     failures = []
 
