@@ -17,6 +17,9 @@
   .filter-row{margin:.5rem 0 1rem;font-size:14px}
   .filter-row select{padding:4px 8px;font:inherit;border:1px solid #D8CEBE;border-radius:6px;background:#fff}
   td.num,th.num{text-align:right}
+  th.mine,td.mine{background:#FBF7EF}
+  table.cmp th:first-child,table.cmp td:first-child{text-align:left;font-weight:600;white-space:nowrap}
+  table.cmp th{text-align:right}
 </style>
 </head>
 <body>
@@ -31,6 +34,20 @@
   <span class="updated"></span>
 </div></header>
 <main>
+  <section>
+    <h2>This Month — Sales Side by Side</h2>
+    <p class="sub">Month-to-date sales for every store, compared directly. ★ is Purse Maison (your store, exact);
+    competitor figures are inferred from de-listings.</p>
+    <div class="chart-box" style="max-width:920px"><div style="height:280px"><canvas id="chMtdUnits"></canvas></div></div>
+    <div class="table-wrap" style="margin-top:1rem"><table id="mtdTbl" class="cmp"></table></div>
+  </section>
+
+  <section>
+    <h2>Sales Breakdown by Brand — This Month</h2>
+    <p class="sub">What each store sold this month, broken down by brand (units · value), side by side.</p>
+    <div class="table-wrap"><table id="brandTbl" class="cmp"></table></div>
+  </section>
+
   <section>
     <h2>Monthly Sales Benchmark</h2>
     <p class="sub">Units sold &amp; value per store, month over month — your long-term yardstick across 2026, 2027 and beyond.
@@ -64,6 +81,57 @@ loadData().then(data => {
   const monthsAsc = bm.months || [];
   const monthsDesc = monthsAsc.slice().reverse();
   const cell = (k, m) => (bm.by_site_month[k] && bm.by_site_month[k][m]) || {count:0, value:0};
+
+  // shared header: one column per store, Purse Maison highlighted
+  const colHead = '<th></th>' + sites.map(s =>
+    `<th class="num ${s.is_mine ? 'mine' : ''}">${esc(s.name)}${s.is_mine ? ' ★' : ''}</th>`).join('');
+
+  // ── this month (MTD): side-by-side comparison table ──
+  const mtdRows = [
+    ['Units sold', s => s.sold_mtd_count || 0],
+    ['Sales value', s => peso(s.sold_mtd_value || 0)],
+    ['Avg days to sell', s => s.avg_days_to_sell ?? '—'],
+  ];
+  document.getElementById('mtdTbl').innerHTML =
+    `<thead><tr>${colHead}</tr></thead><tbody>` +
+    mtdRows.map(([label, fn]) =>
+      `<tr><td>${label}</td>${sites.map(s =>
+        `<td class="num ${s.is_mine ? 'mine' : ''}">${fn(s)}</td>`).join('')}</tr>`).join('') +
+    '</tbody>';
+
+  new Chart(document.getElementById('chMtdUnits'), {
+    type: 'bar',
+    data: { labels: sites.map(s => s.name),
+      datasets: [{ label: 'Units sold MTD',
+        data: sites.map(s => s.sold_mtd_count || 0),
+        backgroundColor: sites.map(s => siteColor(data, s.key) + (s.is_mine ? '' : '99')) }] },
+    options: { responsive: true, maintainAspectRatio: false,
+      scales: { y: { title:{display:true,text:'Units sold (MTD)'}, grid:{color:'#F0EAE0'}, beginAtZero:true },
+                x: { grid:{display:false} } },
+      plugins: { legend: { display:false },
+        tooltip: { callbacks: { label: c => 'Sold MTD: ' + c.parsed.y } } } }
+  });
+
+  // ── sales breakdown by brand (MTD), side by side ──
+  const brandTotals = {};
+  sites.forEach(s => Object.entries(s.sold_mtd_brands || {}).forEach(([b, v]) => {
+    brandTotals[b] = (brandTotals[b] || 0) + (v.count || 0); }));
+  const brands = Object.keys(brandTotals).sort((a, b) => brandTotals[b] - brandTotals[a]);
+  if (brands.length) {
+    const brandBody = brands.map(b =>
+      `<tr><td>${esc(b)}</td>${sites.map(s => {
+        const v = (s.sold_mtd_brands || {})[b];
+        return `<td class="num ${s.is_mine ? 'mine' : ''}">${v ? v.count + ' · ' + peso(v.value) : '—'}</td>`;
+      }).join('')}</tr>`).join('');
+    const totalRow = `<tr><td>Total</td>${sites.map(s =>
+      `<td class="num ${s.is_mine ? 'mine' : ''}"><strong>${(s.sold_mtd_count || 0)
+        ? (s.sold_mtd_count + ' · ' + peso(s.sold_mtd_value)) : '—'}</strong></td>`).join('')}</tr>`;
+    document.getElementById('brandTbl').innerHTML =
+      `<thead><tr>${colHead}</tr></thead><tbody>${brandBody}${totalRow}</tbody>`;
+  } else {
+    document.getElementById('brandTbl').innerHTML =
+      '<tbody><tr><td>No sales recorded this month yet — this fills in as items sell.</td></tr></tbody>';
+  }
 
   // ── monthly chart: units sold per store ──
   if (monthsAsc.length) {
