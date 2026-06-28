@@ -82,18 +82,25 @@ jobs:
           git add data/market.db exports site/data.json
           # Nothing to commit (e.g. all sites unchanged) => succeed quietly
           git diff --cached --quiet && echo "No changes to commit" && exit 0
-          git commit -m "Daily snapshot $(TZ=Asia/Manila date +%F)"
-          # Push can be rejected if another commit (a config edit, or an overlapping
-          # run) landed on main meanwhile. Rebase onto the latest main and retry
-          # instead of failing the whole run. The snapshot only touches data/exports,
-          # so a rebase over unrelated commits applies cleanly.
+          MSG="Daily snapshot $(TZ=Asia/Manila date +%F)"
+          git commit -m "$MSG"
+          # A push can be rejected if main advanced meanwhile (a config edit, or a
+          # re-run of an older run). The generated files (DB / exports / data.json)
+          # are a complete fresh snapshot, so on rejection we DON'T rebase (binary
+          # files can't auto-merge and leave the repo stuck). Instead we move our
+          # branch tip onto the latest main and re-commit THIS run's files on top —
+          # no merge conflicts, newest scrape always wins, other commits preserved.
           for i in 1 2 3 4 5; do
-            if git push; then exit 0; fi
-            echo "Push rejected (attempt $i) — rebasing onto origin/main and retrying…"
-            git pull --rebase --autostash origin main || true
+            if git push origin HEAD:main; then exit 0; fi
+            echo "Push rejected (attempt $i) — re-basing snapshot onto latest main…"
+            git fetch origin main
+            git reset --soft origin/main
+            git add data/market.db exports site/data.json
+            git diff --cached --quiet && { echo "Already current after sync"; exit 0; }
+            git commit -m "$MSG"
             sleep $(( (RANDOM % 5) + 2 ))
           done
-          echo "::error::Could not push snapshot after 5 rebase/retry attempts" >&2
+          echo "::error::Could not push snapshot after 5 attempts" >&2
           exit 1
 
       - name: Upload Pages artifact
