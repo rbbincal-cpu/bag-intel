@@ -336,6 +336,49 @@ def main():
     with open(out, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, separators=(",", ":"))
     print(f"Wrote {out} ({os.path.getsize(out)//1024} KB)")
+
+    # ── inventory explorer + price archive (separate file; the dashboard stays light) ──
+    # Compact price timeline per product, straight from the daily snapshots: keep
+    # only the points where the price changed. Sold/delisted items are retained
+    # forever, so this is a permanent price archive for pricing/consignment calls.
+    hist = defaultdict(list)  # (site, product_id) -> [[date, price], ...] change-points
+    for r in db.execute("""SELECT site, product_id, date, price FROM snapshots
+                           WHERE price > 0 AND price < ? ORDER BY site, product_id, date""",
+                        (maxp,)):
+        pts = hist[(r["site"], r["product_id"])]
+        if not pts or pts[-1][1] != r["price"]:
+            pts.append([r["date"], r["price"]])
+
+    items = []
+    for p in prods:
+        pts = list(hist.get((p["site"], p["product_id"]), []))
+        if p["sold_date"] and valid(p["sold_price"]):
+            if not pts or pts[-1][0] != p["sold_date"]:
+                pts.append([p["sold_date"], round(p["sold_price"])])
+        sold = p["status"] in ("sold", "sold_out") and valid(p["sold_price"])
+        last_price = p["sold_price"] if sold else p["current_price"]
+        end_date = p["sold_date"] or today
+        age = ((date.fromisoformat(end_date) - date.fromisoformat(p["first_seen"])).days
+               if p["first_seen"] else None)
+        items.append({
+            "site": p["site"], "store": sites[p["site"]]["name"],
+            "is_mine": sites[p["site"]].get("is_mine", False),
+            "title": p["title"], "url": p["url"],
+            "brand": p["brand"], "model": p["model"], "hero": p["hero"],
+            "color": p["color"], "hardware": p["hardware"], "leather": p["leather"],
+            "size": p["size"], "category": p["category"], "status": p["status"],
+            "price": round(last_price) if valid(last_price) else None,
+            "first_seen": p["first_seen"], "sold_date": p["sold_date"],
+            "days_to_sell": p["days_to_sell"], "age_days": age,
+            "history": [[d, round(pr)] for d, pr in pts],
+        })
+    inv = {"generated_at": generated_at, "currency": cfg.get("currency", "PHP"),
+           "count": len(items), "items": items}
+    invout = os.path.join(ROOT, "site", "inventory.json")
+    with open(invout, "w", encoding="utf-8") as f:
+        json.dump(inv, f, ensure_ascii=False, separators=(",", ":"))
+    print(f"Wrote {invout} ({os.path.getsize(invout)//1024} KB, {len(items)} items)")
+
     db.close()
 
 
