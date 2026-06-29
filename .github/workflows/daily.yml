@@ -70,10 +70,14 @@ jobs:
           export RCLONE_CONFIG_GD_SERVICE_ACCOUNT_FILE=/tmp/gdrive-sa.json
           export RCLONE_CONFIG_GD_ROOT_FOLDER_ID="$GDRIVE_FOLDER_ID"
           STAMP=$(TZ=Asia/Manila date +%F)
-          rclone copyto data/market.db "gd:market-$STAMP.db" --no-traverse
-          rclone copyto data/market.db "gd:market-latest.db" --no-traverse
-          rm -f /tmp/gdrive-sa.json
-          echo "Backed up market.db to Google Drive (market-$STAMP.db + market-latest.db)."
+          # Best-effort: a Drive misconfig must NEVER fail the run / block the dashboard.
+          if rclone copyto data/market.db "gd:market-$STAMP.db" --no-traverse \
+             && rclone copyto data/market.db "gd:market-latest.db" --no-traverse; then
+            echo "Backed up market.db to Google Drive (market-$STAMP.db + market-latest.db)."
+          else
+            echo "::warning::Google Drive backup failed (verify GDRIVE_FOLDER_ID is the folder's ID and that the folder is shared with the service-account email). Continuing — dashboard is unaffected."
+          fi
+          rm -f /tmp/gdrive-sa.json || true
 
       - name: Commit DB + exports
         run: |
