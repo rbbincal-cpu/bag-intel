@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Inventory Explorer · Bag Intel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+  .filters{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:.5rem 0 1rem}
+  .filters input,.filters select{padding:6px 9px;font:inherit;border:1px solid #D8CEBE;border-radius:6px;background:#fff}
+  .filters input[type=search]{min-width:230px}
+  .filters .spacer{flex:1}
+  .btn{padding:6px 12px;border:1px solid #B08D3E;background:#B08D3E;color:#fff;border-radius:6px;cursor:pointer;font:inherit}
+  .btn.ghost{background:#fff;color:#7a611f}
+  td.num,th.num{text-align:right}
+  th.sortable{cursor:pointer;user-select:none}
+  th.sortable:hover{color:#B08D3E}
+  tr.item{cursor:pointer}
+  tr.item:hover>td{background:#FBF7EF}
+  .pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:600}
+  .pill.live{background:#E7F0E0;color:#3F6212}
+  .pill.sold{background:#F4E2E6;color:#9F1239}
+  .pill.other{background:#EFEAE0;color:#6b5d3e}
+  .detail td{background:#FBF7EF;padding:14px 16px}
+  .hist-stats{display:flex;flex-wrap:wrap;gap:16px;font-size:13px;margin-bottom:.5rem}
+  .hist-stats b{font-weight:600}
+  .hist-list{font-size:13px;color:#5b513f}
+  .count-note{font-size:13px;color:#6b6256}
+</style>
+</head>
+<body>
+<header><div class="header-inner">
+  <h1>Bag<span class="accent">Intel</span></h1>
+  <nav>
+    <a href="index.html">Overview</a>
+    <a href="competitor.html">Competitors</a>
+    <a href="heroes.html">Hero Models</a>
+    <a href="benchmark.html">Benchmark</a>
+    <a class="active" href="explorer.html">Explorer</a>
+  </nav>
+  <span class="updated"></span>
+</div></header>
+<main>
+  <section>
+    <h2>Inventory Explorer</h2>
+    <p class="sub">Every item ever tracked across all stores — live <em>and</em> sold. Search, filter, and click any
+    row to see its full price history. Nothing is deleted: sold items stay here permanently as a price archive for
+    your buying, pricing, and consignment decisions.</p>
+
+    <div class="filters">
+      <input type="search" id="q" placeholder="Search title / brand / model…">
+      <select id="fStore"><option value="">All stores</option></select>
+      <select id="fBrand"><option value="">All brands</option></select>
+      <select id="fStatus">
+        <option value="">All status</option>
+        <option value="live">Live only</option>
+        <option value="sold">Sold only</option>
+      </select>
+      <span class="spacer"></span>
+      <span id="count" class="count-note"></span>
+      <button class="btn ghost" id="csv">Export CSV</button>
+    </div>
+    <div class="table-wrap"><table id="tbl"></table></div>
+  </section>
+
+  <p class="footnote">Prices are the listed/last-known asking prices (sold price for sold items). Competitor "sold"
+  is inferred from de-listings. ₱0 placeholders are excluded from prices.</p>
+</main>
+<script src="app.js"></script>
+<script>
+const MAXROWS = 600;
+let ITEMS = [], VIEW = [], sortKey = 'first_seen', sortDir = -1, openId = null;
+
+const bucket = s => (['sold','sold_out'].includes(s) ? 'sold'
+                   : ['active','reserved'].includes(s) ? 'live' : 'other');
+const statusPill = s => { const b = bucket(s);
+  const label = b === 'live' ? 'Live' : b === 'sold' ? 'Sold' : (s || '—');
+  return `<span class="pill ${b}">${esc(label)}</span>`; };
+const dash = v => (v === null || v === undefined || v === '') ? '—' : v;
+
+function sparkline(hist) {
+  const ps = hist.map(h => h[1]);
+  if (!ps.length) return '';
+  if (ps.length === 1) return `<svg width="160" height="34"><circle cx="80" cy="17" r="3" fill="#B08D3E"/></svg>`;
+  const min = Math.min(...ps), max = Math.max(...ps), W = 160, H = 34, pad = 4;
+  const x = i => pad + i * (W - 2 * pad) / (ps.length - 1);
+  const y = p => max === min ? H / 2 : H - pad - (p - min) / (max - min) * (H - 2 * pad);
+  const pts = ps.map((p, i) => `${x(i).toFixed(1)},${y(p).toFixed(1)}`).join(' ');
+  return `<svg width="${W}" height="${H}"><polyline points="${pts}" fill="none" stroke="#B08D3E" stroke-width="2"/>` +
+         `<circle cx="${x(ps.length-1).toFixed(1)}" cy="${y(ps[ps.length-1]).toFixed(1)}" r="3" fill="#9F1239"/></svg>`;
+}
+
+function detailRow(it) {
+  const ps = it.history.map(h => h[1]);
+  const first = it.history[0], lowest = Math.min(...ps), highest = Math.max(...ps);
+  const onMkt = it.days_to_sell ?? it.age_days;
+  const stats = `<div class="hist-stats">
+    <span>First listed: <b>${pesoFull(first[1])}</b> <span class="sub">(${first[0]})</span></span>
+    <span>Lowest: <b>${pesoFull(lowest)}</b></span>
+    <span>Highest: <b>${pesoFull(highest)}</b></span>
+    <span>${bucket(it.status)==='sold' ? 'Sold' : 'Current'}: <b>${pesoFull(it.price)}</b></span>
+    <span>${bucket(it.status)==='sold' ? 'Days to sell' : 'Days listed'}: <b>${dash(onMkt)}</b></span>
+  </div>`;
+  const list = it.history.map(h => `${h[0]} → ${pesoFull(h[1])}`).join(' &nbsp;·&nbsp; ');
+  return `<tr class="detail"><td colspan="10">${sparkline(it.history)} ${stats}
+    <div class="hist-list">${list}</div></td></tr>`;
+}
+
+function render() {
+  const q = document.getElementById('q').value.toLowerCase().trim();
+  const fStore = document.getElementById('fStore').value;
+  const fBrand = document.getElementById('fBrand').value;
+  const fStatus = document.getElementById('fStatus').value;
+  VIEW = ITEMS.filter(it => {
+    if (fStore && it.site !== fStore) return false;
+    if (fBrand && (it.brand || '') !== fBrand) return false;
+    if (fStatus && bucket(it.status) !== fStatus) return false;
+    if (q && !((it.title + ' ' + (it.brand||'') + ' ' + (it.model||'')).toLowerCase().includes(q))) return false;
+    return true;
+  });
+  VIEW.sort((a, b) => {
+    let x = a[sortKey], y = b[sortKey];
+    x = x ?? ''; y = y ?? '';
+    return (x < y ? -1 : x > y ? 1 : 0) * sortDir;
+  });
+  const shown = VIEW.slice(0, MAXROWS);
+  document.getElementById('count').textContent =
+    VIEW.length.toLocaleString() + ' items' + (VIEW.length > MAXROWS ? ` (showing ${MAXROWS} — refine to narrow)` : '');
+  const arrow = k => sortKey === k ? (sortDir === 1 ? ' ▲' : ' ▼') : '';
+  const th = (k, label, cls = '') => `<th class="sortable ${cls}" data-k="${k}">${label}${arrow(k)}</th>`;
+  let html = `<thead><tr>${th('store','Store')}${th('title','Title')}${th('brand','Brand')}
+    ${th('model','Model')}${th('status','Status')}${th('price','Price','num')}
+    ${th('first_seen','First seen')}${th('sold_date','Sold')}${th('days_to_sell','Days to sell','num')}
+    ${th('age_days','Age','num')}</tr></thead><tbody>`;
+  shown.forEach((it, i) => {
+    const id = it.site + ':' + i;
+    html += `<tr class="item ${it.is_mine ? 'mine' : ''}" data-id="${id}">
+      <td>${esc(it.store)}${it.is_mine ? ' ★' : ''}</td>
+      <td class="title-cell">${it.url ? `<a href="${it.url}" target="_blank" rel="noopener">${esc(it.title)}</a>` : esc(it.title)}</td>
+      <td>${esc(dash(it.brand))}</td><td>${esc(dash(it.model))}</td>
+      <td>${statusPill(it.status)}</td><td class="num">${it.price != null ? peso(it.price) : '—'}</td>
+      <td>${dash(it.first_seen)}</td><td>${dash(it.sold_date)}</td>
+      <td class="num">${dash(it.days_to_sell)}</td><td class="num">${dash(it.age_days)}</td></tr>`;
+    if (openId === id) html += detailRow(it);
+  });
+  document.getElementById('tbl').innerHTML = html + '</tbody>';
+}
+
+function toCSV() {
+  const cols = ['store','title','brand','model','status','price','first_seen','sold_date','days_to_sell','age_days'];
+  const esc = v => `"${String(v ?? '').replace(/"/g,'""')}"`;
+  const lines = [cols.join(',')].concat(VIEW.map(it => cols.map(c => esc(it[c])).join(',')));
+  const blob = new Blob([lines.join('\n')], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'bag-intel-inventory.csv';
+  a.click();
+}
+
+fetch('inventory.json?v=' + Date.now()).then(r => {
+  if (!r.ok) throw new Error('inventory.json missing — run the pipeline first');
+  return r.json();
+}).then(inv => {
+  ITEMS = inv.items || [];
+  const el = document.querySelector('.updated');
+  if (el) el.textContent = 'Updated ' + (inv.generated_at || '') + ' PHT · ' + (inv.count||0).toLocaleString() + ' items archived';
+  const stores = [...new Map(ITEMS.map(i => [i.site, i.store])).entries()];
+  document.getElementById('fStore').innerHTML += stores.map(([k,n]) => `<option value="${k}">${esc(n)}</option>`).join('');
+  const brands = [...new Set(ITEMS.map(i => i.brand).filter(Boolean))].sort();
+  document.getElementById('fBrand').innerHTML += brands.map(b => `<option value="${esc(b)}">${esc(b)}</option>`).join('');
+
+  ['q','fStore','fBrand','fStatus'].forEach(id =>
+    document.getElementById(id).addEventListener('input', () => { openId = null; render(); }));
+  document.getElementById('csv').addEventListener('click', toCSV);
+  document.getElementById('tbl').addEventListener('click', e => {
+    const th = e.target.closest('th.sortable');
+    if (th) { const k = th.dataset.k; if (sortKey === k) sortDir *= -1; else { sortKey = k; sortDir = 1; } render(); return; }
+    const tr = e.target.closest('tr.item');
+    if (tr && e.target.tagName !== 'A') { const id = tr.dataset.id; openId = (openId === id ? null : id); render(); }
+  });
+  render();
+}).catch(e => document.querySelector('main').insertAdjacentHTML('afterbegin',
+  `<p style="color:#9F1239">${esc(e.message)}</p>`));
+</script>
+</body>
+</html>
