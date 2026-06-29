@@ -194,6 +194,16 @@ def main():
     assert any("Birkin 25" in x["title"] for x in data["sold_feed"])
     assert isinstance(data["insights"], list) and data["insights"]
 
+    # ── inventory explorer / price archive ──
+    with open(os.path.join(ROOT, "site", "inventory.json")) as f:
+        inv = json.load(f)
+    assert inv["count"] == len(q("SELECT * FROM products")), inv["count"]
+    b25 = next(x for x in inv["items"]
+               if x["title"].startswith("Birkin 25") and x["site"] == "pursemaison")
+    assert b25["status"] in ("sold", "sold_out") and b25["history"], b25  # sold item keeps history
+    live = next(x for x in inv["items"] if x["site"] == "missmanilaluxe")
+    assert live["history"], live  # live item has a price archive too
+
     # attribute extraction spot checks
     rows = {r["product_id"]: r for r in q("SELECT * FROM products WHERE site='pursemaison'")}
     assert rows[1]["hardware"] == "Gold" and rows[1]["leather"] == "Togo"
