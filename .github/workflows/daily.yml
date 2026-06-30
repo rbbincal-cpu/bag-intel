@@ -45,6 +45,20 @@ jobs:
       - name: Analyze + build dashboard data
         run: python scraper/analyze.py
 
+      # AI analyst agent (once/day, or on a manual run). No-ops without the
+      # ANTHROPIC_API_KEY secret and never fails the run. ~one cheap API call/day.
+      - name: AI business briefing
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          H=$(TZ=Asia/Manila date +%H)
+          if [ "$EVENT" = "workflow_dispatch" ] || [ "$H" = "08" ]; then
+            python scraper/ai_brief.py || echo "::warning::AI briefing step errored (run unaffected)."
+          else
+            echo "Skipping AI briefing this run (runs once/day ~08:00 Manila, or on a manual run)."
+          fi
+
       - name: Excel export
         run: python scraper/export_excel.py
 
@@ -83,7 +97,7 @@ jobs:
         run: |
           git config user.name "bag-intel-bot"
           git config user.email "actions@github.com"
-          git add data/market.db exports site/data.json
+          git add data/market.db exports site/data.json site/briefing.json
           # Nothing to commit (e.g. all sites unchanged) => succeed quietly
           git diff --cached --quiet && echo "No changes to commit" && exit 0
           MSG="Daily snapshot $(TZ=Asia/Manila date +%F)"
@@ -99,7 +113,7 @@ jobs:
             echo "Push rejected (attempt $i) — re-basing snapshot onto latest main…"
             git fetch origin main
             git reset --soft origin/main
-            git add data/market.db exports site/data.json
+            git add data/market.db exports site/data.json site/briefing.json
             git diff --cached --quiet && { echo "Already current after sync"; exit 0; }
             git commit -m "$MSG"
             sleep $(( (RANDOM % 5) + 2 ))
