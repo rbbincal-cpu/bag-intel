@@ -95,8 +95,8 @@ def call_claude(api_key, model, snapshot):
 def main():
     cfg = load_config()
     now = manila_now(cfg)
-    key = os.environ.get("ANTHROPIC_API_KEY")
-    model = os.environ.get("AI_MODEL", "claude-sonnet-4-6")
+    key = (os.environ.get("ANTHROPIC_API_KEY") or "").strip()   # tolerate stray whitespace/newline
+    model = (os.environ.get("AI_MODEL") or "claude-sonnet-4-6").strip()
 
     if not key:
         write({"generated_at": now, "configured": False,
