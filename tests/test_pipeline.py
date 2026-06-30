@@ -204,6 +204,15 @@ def main():
     live = next(x for x in inv["items"] if x["site"] == "missmanilaluxe")
     assert live["history"], live  # live item has a price archive too
 
+    # ── AI agent: no key => safe placeholder, exit 0 (never breaks the pipeline) ──
+    env_nokey = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
+    r = subprocess.run([sys.executable, os.path.join(ROOT, "scraper", "ai_brief.py")],
+                       env=env_nokey, capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    with open(os.path.join(ROOT, "site", "briefing.json")) as f:
+        brief = json.load(f)
+    assert brief["configured"] is False and "briefing" in brief
+
     # attribute extraction spot checks
     rows = {r["product_id"]: r for r in q("SELECT * FROM products WHERE site='pursemaison'")}
     assert rows[1]["hardware"] == "Gold" and rows[1]["leather"] == "Togo"
