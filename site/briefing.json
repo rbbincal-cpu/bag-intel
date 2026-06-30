@@ -1,1 +1,1 @@
-{"generated_at":"2026-06-30 14:37","configured":false,"note":"AI briefing not configured. Add the ANTHROPIC_API_KEY repository secret to switch on the analyst agent.","briefing":[],"alerts":[],"pricing":[]}
+{"generated_at":"2026-06-30 15:08","configured":true,"error":true,"note":"The AI briefing could not be generated this run; it will retry next run.","briefing":[],"alerts":[],"pricing":[]}
