@@ -1,6 +1,8 @@
 /* Shared helpers for all dashboard pages */
 const GOLD = '#B08D3E';
-const PALETTE = ['#B08D3E', '#1C1917', '#9F1239', '#3F6212', '#1D4ED8', '#7C3AED'];
+// 7 distinct colors — one per store. Miss Manila Luxe (7th) gets teal so it no
+// longer wraps back to Purse Maison's gold.
+const PALETTE = ['#B08D3E', '#1C1917', '#9F1239', '#3F6212', '#1D4ED8', '#7C3AED', '#0E7490'];
 
 const peso = n => n == null ? '—' :
   '₱' + (n >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(0) + 'K' : Math.round(n));

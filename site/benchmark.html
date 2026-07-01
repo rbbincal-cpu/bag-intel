@@ -104,14 +104,15 @@ loadData().then(data => {
   new Chart(document.getElementById('chMtdUnits'), {
     type: 'bar',
     data: { labels: sites.map(s => s.name),
-      datasets: [{ label: 'Units sold MTD',
-        data: sites.map(s => s.sold_mtd_count || 0),
+      datasets: [{ label: 'Sales value MTD',
+        data: sites.map(s => s.sold_mtd_value || 0),
         backgroundColor: sites.map(s => siteColor(data, s.key) + (s.is_mine ? '' : '99')) }] },
     options: { responsive: true, maintainAspectRatio: false,
-      scales: { y: { title:{display:true,text:'Units sold (MTD)'}, grid:{color:'#F0EAE0'}, beginAtZero:true },
+      scales: { y: { title:{display:true,text:'Sales value ₱ (MTD)'}, grid:{color:'#F0EAE0'}, beginAtZero:true,
+                     ticks:{ callback: v => peso(v) } },
                 x: { grid:{display:false} } },
       plugins: { legend: { display:false },
-        tooltip: { callbacks: { label: c => 'Sold MTD: ' + c.parsed.y } } } }
+        tooltip: { callbacks: { label: c => 'Sold ₱ MTD: ' + pesoFull(c.parsed.y) } } } }
   });
 
   // ── sales breakdown by brand (MTD), side by side ──
