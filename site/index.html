@@ -31,6 +31,18 @@
   </section>
 
   <section>
+    <h2>Store Comparison</h2>
+    <p class="sub">The headline numbers as quick bar charts — every store side by side. ★ Purse Maison is highlighted; competitors are lighter.</p>
+    <div class="chart-grid">
+      <div class="chart-box"><h3>Items (live inventory)</h3><div style="height:260px"><canvas id="chCmpItems"></canvas></div></div>
+      <div class="chart-box"><h3>Inventory value (₱)</h3><div style="height:260px"><canvas id="chCmpInvVal"></canvas></div></div>
+      <div class="chart-box"><h3>Sold this month (units)</h3><div style="height:260px"><canvas id="chCmpSold"></canvas></div></div>
+      <div class="chart-box"><h3>Sold this month (₱)</h3><div style="height:260px"><canvas id="chCmpSoldVal"></canvas></div></div>
+      <div class="chart-box"><h3>New listings this month</h3><div style="height:260px"><canvas id="chCmpNew"></canvas></div></div>
+    </div>
+  </section>
+
+  <section>
     <h2>Trends</h2>
     <p class="sub">History accumulates from the first scrape onward.</p>
     <div class="chart-grid">
@@ -77,6 +89,25 @@ loadData().then(data => {
     <th>Sold MTD</th><th>Sold ₱ MTD</th><th>New MTD</th><th>Avg DTS</th>
     <th>60d+ aged</th><th>90d+ aged</th><th>Drops MTD</th><th>H/C/LV/Other</th></tr></thead>
     <tbody>${rows}</tbody>`;
+
+  // ── store comparison bar charts (one per headline metric) ──
+  const barCmp = (id, field, money) => new Chart(document.getElementById(id), {
+    type: 'bar',
+    data: { labels: data.sites.map(s => s.name),
+      datasets: [{ data: data.sites.map(s => s[field] || 0),
+        backgroundColor: data.sites.map(s => siteColor(data, s.key) + (s.is_mine ? '' : '99')) }] },
+    options: { responsive: true, maintainAspectRatio: false,
+      scales: { y: { beginAtZero: true, grid: { color: '#F0EAE0' },
+                     ticks: { callback: v => money ? peso(v) : v, font: { size: 10 } } },
+                x: { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 50, minRotation: 30 } } },
+      plugins: { legend: { display: false },
+        tooltip: { callbacks: { label: c => money ? pesoFull(c.parsed.y) : c.parsed.y } } } }
+  });
+  barCmp('chCmpItems', 'inventory_count', false);
+  barCmp('chCmpInvVal', 'inventory_value', true);
+  barCmp('chCmpSold', 'sold_mtd_count', false);
+  barCmp('chCmpSoldVal', 'sold_mtd_value', true);
+  barCmp('chCmpNew', 'new_mtd_count', false);
 
   // ── trend charts ──
   const inv = data.series.inventory || {};
