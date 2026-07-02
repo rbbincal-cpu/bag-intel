@@ -9,6 +9,10 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+  .filter-row{margin:.25rem 0 1rem;font-size:14px}
+  .filter-row select{padding:4px 8px;font:inherit;border:1px solid #D8CEBE;border-radius:6px;background:#fff}
+</style>
 </head>
 <body>
 <header><div class="header-inner">
@@ -26,7 +30,9 @@
 <main>
   <section>
     <h2>Market Overview</h2>
-    <p class="sub">All stores side by side — ★ is Purse Maison. MTD = month to date (Manila time). Peso values from listed prices.</p>
+    <p class="sub">All stores side by side — ★ is Purse Maison. Pick a month to view that period;
+    the current month equals the live "now" snapshot. Peso values from listed prices.</p>
+    <div class="filter-row">Month: <select id="ovMonth"></select> <span id="ovMonthNote" class="sub"></span></div>
     <div class="table-wrap"><table id="overview"></table></div>
   </section>
 
@@ -66,29 +72,84 @@
 <script>
 loadData().then(data => {
   setUpdated(data);
-  const mp = data.generated.slice(0, 7);
+  const mp = data.generated.slice(0, 7);          // current month, e.g. "2026-07"
 
-  // ── overview table ──
-  const rows = data.sites.map(s => `
-    <tr class="${s.is_mine ? 'mine' : ''}">
-      <td><a href="competitor.html?site=${s.key}">${esc(s.name)}</a></td>
-      <td>${s.inventory_count.toLocaleString()}</td>
-      <td>${peso(s.inventory_value)}</td>
-      <td>${pesoFull(s.avg_ticket)}</td>
-      <td>${s.sold_mtd_count}</td>
-      <td>${peso(s.sold_mtd_value)}</td>
-      <td>${s.new_mtd_count}</td>
-      <td>${s.avg_days_to_sell ?? '—'}</td>
-      <td>${s.aging60_count} · ${peso(s.aging60_value)}</td>
-      <td>${s.aging90_count} · ${peso(s.aging90_value)}</td>
-      <td>${s.markdowns_mtd}${s.markdowns_mtd ? ` <span class="neg">(−${s.avg_discount_pct}%)</span>` : ''}</td>
-      <td>${['Hermès','Chanel','Louis Vuitton','Other'].map(b => (s.brand_mix[b] ?? 0) + '%').join(' / ')}</td>
-    </tr>`).join('');
-  document.getElementById('overview').innerHTML = `
-    <thead><tr><th>Store</th><th>Items</th><th>Inv. value</th><th>Avg ticket</th>
-    <th>Sold MTD</th><th>Sold ₱ MTD</th><th>New MTD</th><th>Avg DTS</th>
-    <th>60d+ aged</th><th>90d+ aged</th><th>Drops MTD</th><th>H/C/LV/Other</th></tr></thead>
-    <tbody>${rows}</tbody>`;
+  // ── overview table (reconstructable per month) ──
+  const invSeries = data.series.inventory || {};
+  const newSeries = data.series.new || [];
+  const bsm = (data.benchmark && data.benchmark.by_site_month) || {};
+  const feed = data.sold_feed || [];
+
+  // month choices: benchmark months ∪ every inventory-snapshot month, newest first
+  const monthSet = new Set((data.benchmark && data.benchmark.months) || []);
+  Object.values(invSeries).forEach(o => (o.dates || []).forEach(d => monthSet.add(d.slice(0, 7))));
+  monthSet.add(mp);
+  const monthsDesc = [...monthSet].filter(Boolean).sort().reverse();
+
+  const ovSel = document.getElementById('ovMonth');
+  ovSel.innerHTML = monthsDesc.map(m =>
+    `<option value="${m}">${m}${m === mp ? ' (this month)' : ''}</option>`).join('');
+  ovSel.value = mp;
+
+  // month-end inventory: last daily snapshot on/before the end of month M
+  function invAt(key, M) {
+    const o = invSeries[key];
+    if (!o || !o.dates) return null;
+    let idx = -1;
+    for (let i = 0; i < o.dates.length; i++) {
+      if (o.dates[i].slice(0, 7) <= M) idx = i; else break;
+    }
+    return idx < 0 ? null : { count: o.count[idx], value: o.value[idx] };
+  }
+
+  function renderOverview(M) {
+    const isCur = M === mp;
+    document.getElementById('ovMonthNote').textContent = isCur
+      ? 'live snapshot as of the latest scrape'
+      : 'month-end snapshot · aging, drops & brand mix are live-only (current month)';
+    const rows = data.sites.map(s => {
+      const snap = invAt(s.key, M);
+      const items = snap ? snap.count : 0;
+      const invVal = snap ? snap.value : 0;
+      const avgTk = snap && snap.count ? Math.round(snap.value / snap.count) : null;
+      const sold = (bsm[s.key] && bsm[s.key][M]) || { count: 0, value: 0 };
+      const newC = newSeries.filter(r => r.site === s.key && r.d && r.d.slice(0, 7) === M)
+                            .reduce((n, r) => n + (r.c || 0), 0);
+      const dtsArr = feed.filter(p => p.site === s.key && (p.sold_date || '').slice(0, 7) === M
+                            && p.days_to_sell != null).map(p => p.days_to_sell);
+      const dts = dtsArr.length ? (dtsArr.reduce((a, b) => a + b, 0) / dtsArr.length).toFixed(1) : '—';
+      const aged60 = isCur ? `${s.aging60_count} · ${peso(s.aging60_value)}` : '—';
+      const aged90 = isCur ? `${s.aging90_count} · ${peso(s.aging90_value)}` : '—';
+      const drops = isCur
+        ? `${s.markdowns_mtd}${s.markdowns_mtd ? ` <span class="neg">(−${s.avg_discount_pct}%)</span>` : ''}`
+        : '—';
+      const mix = isCur
+        ? ['Hermès', 'Chanel', 'Louis Vuitton', 'Other'].map(b => (s.brand_mix[b] ?? 0) + '%').join(' / ')
+        : '—';
+      return `
+      <tr class="${s.is_mine ? 'mine' : ''}">
+        <td><a href="competitor.html?site=${s.key}">${esc(s.name)}</a></td>
+        <td>${items.toLocaleString()}</td>
+        <td>${peso(invVal)}</td>
+        <td>${avgTk == null ? '—' : pesoFull(avgTk)}</td>
+        <td>${sold.count}</td>
+        <td>${peso(sold.value)}</td>
+        <td>${newC}</td>
+        <td>${dts}</td>
+        <td>${aged60}</td>
+        <td>${aged90}</td>
+        <td>${drops}</td>
+        <td>${mix}</td>
+      </tr>`;
+    }).join('');
+    document.getElementById('overview').innerHTML = `
+      <thead><tr><th>Store</th><th>Items</th><th>Inv. value</th><th>Avg ticket</th>
+      <th>Sold</th><th>Sold ₱</th><th>New</th><th>Avg DTS</th>
+      <th>60d+ aged</th><th>90d+ aged</th><th>Drops</th><th>H/C/LV/Other</th></tr></thead>
+      <tbody>${rows}</tbody>`;
+  }
+  ovSel.onchange = () => renderOverview(ovSel.value);
+  renderOverview(mp);
 
   // ── store comparison bar charts (one per headline metric) ──
   const barCmp = (id, field, money) => new Chart(document.getElementById(id), {
