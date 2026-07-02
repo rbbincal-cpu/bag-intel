@@ -136,12 +136,18 @@ jobs:
   deploy:
     needs: scrape
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          # GitHub Pages' publisher can be slow/degraded; wait up to 25 min
+          # (default is 10) so a slow Pages backend doesn't fail the deploy.
+          timeout: 1500000
+          error_count: 15
 
   notify-failure:
     needs: [scrape, deploy]
