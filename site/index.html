@@ -88,7 +88,8 @@ loadData().then(data => {
 
   const ovSel = document.getElementById('ovMonth');
   ovSel.innerHTML = monthsDesc.map(m =>
-    `<option value="${m}">${m}${m === mp ? ' (this month)' : ''}</option>`).join('');
+    `<option value="${m}">${m}${m === mp ? ' (this month)' : ''}</option>`).join('') +
+    '<option value="ALL">All time (totals)</option>';
   ovSel.value = mp;
 
   // month-end inventory: last daily snapshot on/before the end of month M
@@ -103,20 +104,25 @@ loadData().then(data => {
   }
 
   function renderOverview(M) {
-    const isCur = M === mp;
-    document.getElementById('ovMonthNote').textContent = isCur
-      ? 'live snapshot as of the latest scrape'
-      : 'month-end snapshot · aging, drops & brand mix are live-only (current month)';
+    const isAll = M === 'ALL';
+    const isCur = isAll || M === mp;          // snapshot & live-only cols use live values for ALL too
+    document.getElementById('ovMonthNote').textContent = isAll
+      ? 'all-time totals for Sold & New · inventory, aging, drops & brand mix are the live snapshot'
+      : (M === mp ? 'live snapshot as of the latest scrape'
+                  : 'month-end snapshot · aging, drops & brand mix are live-only (current month)');
     const rows = data.sites.map(s => {
-      const snap = invAt(s.key, M);
+      const snap = invAt(s.key, isAll ? mp : M);
       const items = snap ? snap.count : 0;
       const invVal = snap ? snap.value : 0;
       const avgTk = snap && snap.count ? Math.round(snap.value / snap.count) : null;
-      const sold = (bsm[s.key] && bsm[s.key][M]) || { count: 0, value: 0 };
-      const newC = newSeries.filter(r => r.site === s.key && r.d && r.d.slice(0, 7) === M)
+      const sold = isAll
+        ? Object.values(bsm[s.key] || {}).reduce((a, c) =>
+            ({ count: a.count + c.count, value: a.value + c.value }), { count: 0, value: 0 })
+        : ((bsm[s.key] && bsm[s.key][M]) || { count: 0, value: 0 });
+      const newC = newSeries.filter(r => r.site === s.key && r.d && (isAll || r.d.slice(0, 7) === M))
                             .reduce((n, r) => n + (r.c || 0), 0);
-      const dtsArr = feed.filter(p => p.site === s.key && (p.sold_date || '').slice(0, 7) === M
-                            && p.days_to_sell != null).map(p => p.days_to_sell);
+      const dtsArr = feed.filter(p => p.site === s.key && p.days_to_sell != null
+                            && (isAll || (p.sold_date || '').slice(0, 7) === M)).map(p => p.days_to_sell);
       const dts = dtsArr.length ? (dtsArr.reduce((a, b) => a + b, 0) / dtsArr.length).toFixed(1) : '—';
       const aged60 = isCur ? `${s.aging60_count} · ${peso(s.aging60_value)}` : '—';
       const aged90 = isCur ? `${s.aging90_count} · ${peso(s.aging90_value)}` : '—';
