@@ -45,8 +45,10 @@
   </section>
 
   <section>
-    <h2>Sales Breakdown by Brand — This Month</h2>
-    <p class="sub">What each store sold this month, broken down by brand (units · value), side by side.</p>
+    <h2>Sales Breakdown by Brand</h2>
+    <p class="sub">What each store sold, broken down by brand (units · value), side by side.
+    Pick a month to compare any period — history accumulates as tracking continues.</p>
+    <div class="filter-row">Month: <select id="brandMonth"></select> <span id="brandMonthLabel" class="sub"></span></div>
     <div class="table-wrap"><table id="brandTbl" class="cmp"></table></div>
   </section>
 
@@ -115,26 +117,50 @@ loadData().then(data => {
         tooltip: { callbacks: { label: c => 'Sold ₱ MTD: ' + pesoFull(c.parsed.y) } } } }
   });
 
-  // ── sales breakdown by brand (MTD), side by side ──
-  const brandTotals = {};
-  sites.forEach(s => Object.entries(s.sold_mtd_brands || {}).forEach(([b, v]) => {
-    brandTotals[b] = (brandTotals[b] || 0) + (v.count || 0); }));
-  const brands = Object.keys(brandTotals).sort((a, b) => brandTotals[b] - brandTotals[a]);
-  if (brands.length) {
-    const brandBody = brands.map(b =>
+  // ── sales breakdown by brand, per selectable month (from the sold feed) ──
+  const soldFeed = data.sold_feed || [];
+  const brandSel = document.getElementById('brandMonth');
+  const curMonth = (data.generated_at || data.generated || '').slice(0, 7);
+  brandSel.innerHTML =
+    monthsDesc.map(m => `<option value="${m}">${m}</option>`).join('') +
+    '<option value="">All months</option>';
+  brandSel.value = monthsDesc.includes(curMonth) ? curMonth : (monthsDesc[0] || '');
+
+  function renderBrand(mf) {
+    const rows = soldFeed.filter(p => !mf || (p.sold_date || '').startsWith(mf));
+    const agg = {}, totals = {};                    // brand -> {siteKey:{count,value}} ; siteKey -> {count,value}
+    rows.forEach(p => {
+      const b = p.brand || 'Other';
+      const v = p.sold_price || 0;
+      (agg[b] = agg[b] || {});
+      const cell = (agg[b][p.site] = agg[b][p.site] || { count: 0, value: 0 });
+      cell.count++; cell.value += v;
+      const t = (totals[p.site] = totals[p.site] || { count: 0, value: 0 });
+      t.count++; t.value += v;
+    });
+    const cnt = o => Object.values(o).reduce((n, c) => n + c.count, 0);
+    const brands = Object.keys(agg).sort((a, b) => cnt(agg[b]) - cnt(agg[a]));
+    document.getElementById('brandMonthLabel').textContent =
+      mf ? '' : 'all recorded history (last 400 sales)';
+    if (!brands.length) {
+      document.getElementById('brandTbl').innerHTML =
+        '<tbody><tr><td>No sales recorded in this period yet — this fills in as items sell.</td></tr></tbody>';
+      return;
+    }
+    const body = brands.map(b =>
       `<tr><td>${esc(b)}</td>${sites.map(s => {
-        const v = (s.sold_mtd_brands || {})[b];
+        const v = agg[b][s.key];
         return `<td class="num ${s.is_mine ? 'mine' : ''}">${v ? v.count + ' · ' + peso(v.value) : '—'}</td>`;
       }).join('')}</tr>`).join('');
-    const totalRow = `<tr><td>Total</td>${sites.map(s =>
-      `<td class="num ${s.is_mine ? 'mine' : ''}"><strong>${(s.sold_mtd_count || 0)
-        ? (s.sold_mtd_count + ' · ' + peso(s.sold_mtd_value)) : '—'}</strong></td>`).join('')}</tr>`;
+    const totalRow = `<tr><td>Total</td>${sites.map(s => {
+      const t = totals[s.key];
+      return `<td class="num ${s.is_mine ? 'mine' : ''}"><strong>${t ? t.count + ' · ' + peso(t.value) : '—'}</strong></td>`;
+    }).join('')}</tr>`;
     document.getElementById('brandTbl').innerHTML =
-      `<thead><tr>${colHead}</tr></thead><tbody>${brandBody}${totalRow}</tbody>`;
-  } else {
-    document.getElementById('brandTbl').innerHTML =
-      '<tbody><tr><td>No sales recorded this month yet — this fills in as items sell.</td></tr></tbody>';
+      `<thead><tr>${colHead}</tr></thead><tbody>${body}${totalRow}</tbody>`;
   }
+  brandSel.onchange = () => renderBrand(brandSel.value);
+  renderBrand(brandSel.value);
 
   // ── monthly chart: units sold per store ──
   if (monthsAsc.length) {
