@@ -76,7 +76,7 @@ def summarize(data):
 
 def call_claude(api_key, model, snapshot):
     body = {
-        "model": model, "max_tokens": 1600, "system": SYSTEM_PROMPT,
+        "model": model, "max_tokens": 4096, "system": SYSTEM_PROMPT,   # 1600 truncated the JSON mid-string
         "messages": [{"role": "user", "content": "Daily snapshot JSON:\n" + json.dumps(snapshot)}],
     }
     req = urllib.request.Request(
