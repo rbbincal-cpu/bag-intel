@@ -44,6 +44,11 @@ sites:
     base_url: https://www.missmanilaluxe.com
     is_mine: false
     brand_source: title    # vendor = store name, tags = SKU codes; brand is in the title
+  - key: canonebags
+    name: Canone Bags Prime
+    base_url: https://canonebagsprime.com
+    is_mine: false
+    brand_source: vendor   # vendor field holds the real brand (Gucci, Dior, YSL…)
 
 scrape:
   page_limit: 250
