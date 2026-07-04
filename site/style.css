@@ -4,12 +4,12 @@
   --card: #FFFFFF;
   --ink: #202223;
   --muted: #6D7175;
-  --gold: #008060;          /* accent — kept var name for backwards-compat */
-  --gold-light: #D6F0E4;
+  --gold: #1A1A1A;          /* accent — near-black, Shopify newest admin look */
+  --gold-light: #EBEBEB;
   --line: #E1E3E5;
   --green: #007F5F;
   --red: #D72C0D;
-  --mine: #F1F8F5;
+  --mine: #F1F1F1;
   --shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 1px 3px rgba(16, 24, 40, .03);
 }
 * { box-sizing: border-box; margin: 0; }
@@ -71,7 +71,7 @@ td.title-cell { max-width: 360px; overflow: hidden; text-overflow: ellipsis; whi
 .pos { color: var(--green); } .neg { color: var(--red); }
 .badge {
   display: inline-block; font-size: 10.5px; padding: 2px 8px; border-radius: 8px;
-  background: var(--gold-light); color: #0B5A43; letter-spacing: .02em;
+  background: var(--gold-light); color: #303030; letter-spacing: .02em;
 }
 .badge.sold { background: #FDE7E3; color: var(--red); }
 .badge.reserved { background: #E0E7FF; color: #3730A3; }

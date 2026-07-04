@@ -13,18 +13,18 @@
   .filters input,.filters select{padding:6px 9px;font:inherit;border:1px solid #C9CCCF;border-radius:6px;background:#fff}
   .filters input[type=search]{min-width:230px}
   .filters .spacer{flex:1}
-  .btn{padding:6px 12px;border:1px solid #008060;background:#008060;color:#fff;border-radius:6px;cursor:pointer;font:inherit}
-  .btn.ghost{background:#fff;color:#008060}
+  .btn{padding:6px 12px;border:1px solid #1A1A1A;background:#1A1A1A;color:#fff;border-radius:6px;cursor:pointer;font:inherit}
+  .btn.ghost{background:#fff;color:#1A1A1A}
   td.num,th.num{text-align:right}
   th.sortable{cursor:pointer;user-select:none}
-  th.sortable:hover{color:#008060}
+  th.sortable:hover{color:#1A1A1A}
   tr.item{cursor:pointer}
-  tr.item:hover>td{background:#F1F8F5}
+  tr.item:hover>td{background:#F6F6F7}
   .pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:600}
   .pill.live{background:#E7F0E0;color:#3F6212}
   .pill.sold{background:#F4E2E6;color:#9F1239}
   .pill.other{background:#EDEEEF;color:#6D7175}
-  .detail td{background:#F1F8F5;padding:14px 16px}
+  .detail td{background:#F6F6F7;padding:14px 16px}
   .hist-stats{display:flex;flex-wrap:wrap;gap:16px;font-size:13px;margin-bottom:.5rem}
   .hist-stats b{font-weight:600}
   .hist-list{font-size:13px;color:#5b513f}
@@ -85,12 +85,12 @@ const dash = v => (v === null || v === undefined || v === '') ? '—' : v;
 function sparkline(hist) {
   const ps = hist.map(h => h[1]);
   if (!ps.length) return '';
-  if (ps.length === 1) return `<svg width="160" height="34"><circle cx="80" cy="17" r="3" fill="#008060"/></svg>`;
+  if (ps.length === 1) return `<svg width="160" height="34"><circle cx="80" cy="17" r="3" fill="#1A1A1A"/></svg>`;
   const min = Math.min(...ps), max = Math.max(...ps), W = 160, H = 34, pad = 4;
   const x = i => pad + i * (W - 2 * pad) / (ps.length - 1);
   const y = p => max === min ? H / 2 : H - pad - (p - min) / (max - min) * (H - 2 * pad);
   const pts = ps.map((p, i) => `${x(i).toFixed(1)},${y(p).toFixed(1)}`).join(' ');
-  return `<svg width="${W}" height="${H}"><polyline points="${pts}" fill="none" stroke="#008060" stroke-width="2"/>` +
+  return `<svg width="${W}" height="${H}"><polyline points="${pts}" fill="none" stroke="#1A1A1A" stroke-width="2"/>` +
          `<circle cx="${x(ps.length-1).toFixed(1)}" cy="${y(ps[ps.length-1]).toFixed(1)}" r="3" fill="#9F1239"/></svg>`;
 }
 

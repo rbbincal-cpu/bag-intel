@@ -1,8 +1,8 @@
 /* Shared helpers for all dashboard pages */
-const GOLD = '#008060';
-// 7 distinct store colors. Purse Maison (mine) uses the brand green accent;
-// the rest are distinct hues so every store reads clearly on the charts.
-const PALETTE = ['#008060', '#202223', '#9F1239', '#B98900', '#1D4ED8', '#7C3AED', '#0E7490'];
+const GOLD = '#202223';
+// 7 distinct store colors. Purse Maison (mine) is near-black to match the
+// neutral accent; the rest are distinct hues so every store reads clearly.
+const PALETTE = ['#202223', '#8C9196', '#9F1239', '#B98900', '#1D4ED8', '#7C3AED', '#0E7490'];
 
 const peso = n => n == null ? '—' :
   '₱' + (n >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(0) + 'K' : Math.round(n));
