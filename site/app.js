@@ -1,8 +1,8 @@
 /* Shared helpers for all dashboard pages */
-const GOLD = '#B08D3E';
-// 7 distinct colors — one per store. Miss Manila Luxe (7th) gets teal so it no
-// longer wraps back to Purse Maison's gold.
-const PALETTE = ['#B08D3E', '#1C1917', '#9F1239', '#3F6212', '#1D4ED8', '#7C3AED', '#0E7490'];
+const GOLD = '#008060';
+// 7 distinct store colors. Purse Maison (mine) uses the brand green accent;
+// the rest are distinct hues so every store reads clearly on the charts.
+const PALETTE = ['#008060', '#202223', '#9F1239', '#B98900', '#1D4ED8', '#7C3AED', '#0E7490'];
 
 const peso = n => n == null ? '—' :
   '₱' + (n >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(0) + 'K' : Math.round(n));
@@ -43,7 +43,7 @@ function lineChart(ctx, datasets, opts = {}) {
       interaction: { mode: 'nearest', intersect: false },
       scales: {
         x: { type: 'category', grid: { display: false }, ticks: { maxTicksLimit: 8, font: { size: 10 } } },
-        y: { ticks: { callback: v => opts.money ? peso(v) : v, font: { size: 10 } }, grid: { color: '#F0EAE0' } }
+        y: { ticks: { callback: v => opts.money ? peso(v) : v, font: { size: 10 } }, grid: { color: '#E1E3E5' } }
       },
       plugins: { legend: { labels: { boxWidth: 10, font: { size: 11 } } },
         tooltip: { callbacks: { label: c => c.dataset.label + ': ' + (opts.money ? pesoFull(c.parsed.y) : c.parsed.y) } } }

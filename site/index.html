@@ -11,7 +11,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <style>
   .filter-row{margin:.25rem 0 1rem;font-size:14px}
-  .filter-row select{padding:4px 8px;font:inherit;border:1px solid #D8CEBE;border-radius:6px;background:#fff}
+  .filter-row select{padding:4px 8px;font:inherit;border:1px solid #C9CCCF;border-radius:6px;background:#fff}
 </style>
 </head>
 <body>
@@ -164,7 +164,7 @@ loadData().then(data => {
       datasets: [{ data: data.sites.map(s => s[field] || 0),
         backgroundColor: data.sites.map(s => siteColor(data, s.key) + (s.is_mine ? '' : '99')) }] },
     options: { responsive: true, maintainAspectRatio: false,
-      scales: { y: { beginAtZero: true, grid: { color: '#F0EAE0' },
+      scales: { y: { beginAtZero: true, grid: { color: '#E1E3E5' },
                      ticks: { callback: v => money ? peso(v) : v, font: { size: 10 } } },
                 x: { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 50, minRotation: 30 } } },
       plugins: { legend: { display: false },
@@ -195,7 +195,7 @@ loadData().then(data => {
       datasets: data.sites.map(s => ({ label: s.name, data: s.cadence,
         backgroundColor: siteColor(data, s.key) + (s.is_mine ? '' : '99') })) },
     options: { responsive: true, maintainAspectRatio: false,
-      scales: { y: { grid: { color: '#F0EAE0' } }, x: { grid: { display: false } } },
+      scales: { y: { grid: { color: '#E1E3E5' } }, x: { grid: { display: false } } },
       plugins: { legend: { labels: { boxWidth: 10, font: { size: 11 } } } } }
   });
 }).catch(e => document.querySelector('main').insertAdjacentHTML('afterbegin',
