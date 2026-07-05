@@ -59,12 +59,31 @@ def main():
             "currency": cfg.get("currency", "PHP"),
             "sites": [], "heroes": [], "series": {}, "competitor_detail": {}}
 
+    # Consignor pull-outs wrongly flagged as "sold". A delisted item normally
+    # counts as sold (3-day rule), but if a consignor simply withdrew it, it was
+    # NOT a sale. config sold_exclusions[site] = list of title substrings; matches
+    # are forced to status "withdrawn" (out of both sold metrics AND live inventory).
+    _norm = lambda s: re.sub(r"[^a-z0-9]+", " ", (s or "").lower()).strip()
+    excl = {site: [_norm(x) for x in (subs or [])]
+            for site, subs in (cfg.get("sold_exclusions") or {}).items()}
+
     prods = [dict(r) for r in db.execute("SELECT * FROM products").fetchall()]
     by_site = defaultdict(list)
+    n_excluded = 0
     for p in prods:
         p["hero"] = match_hero(matchers, p["brand"], p["norm_title"]) \
             if p["category"] == "Bags" else None
+        subs = excl.get(p["site"])
+        if subs and p["status"] in ("sold", "sold_out"):
+            nt = _norm(p["title"])
+            if any(s in nt for s in subs):
+                p["status"] = "withdrawn"      # neither sold nor live inventory
+                p["sold_date"] = None
+                p["sold_price"] = None
+                n_excluded += 1
         by_site[p["site"]].append(p)
+    if n_excluded:
+        print(f"Excluded {n_excluded} consignor pull-out(s) from sold metrics")
 
     # first run date per site (items first_seen that day predate tracking)
     first_run = {k: min((p["first_seen"] for p in v), default=today)
@@ -214,13 +233,16 @@ def main():
         s["count"].append(r["c"])
     data["series"]["inventory"] = series
 
-    # sold per day per site (for MTD trend), new uploads per day
-    sold_rows = db.execute("""SELECT sold_date d, site, COUNT(*) c,
-                              SUM(CASE WHEN COALESCE(sold_price,0)<? THEN
-                                  COALESCE(sold_price,0) ELSE 0 END) v FROM products
-                              WHERE status IN ('sold','sold_out') AND sold_date
-                              IS NOT NULL GROUP BY sold_date, site""", (maxp,)).fetchall()
-    data["series"]["sold"] = [dict(r) for r in sold_rows]
+    # sold per day per site (for MTD trend) — derived from prods (in memory) so the
+    # sold_exclusions above are respected (a raw SQL query would re-include them).
+    sold_agg = defaultdict(lambda: [0, 0.0])
+    for p in prods:
+        if p["status"] in ("sold", "sold_out") and p["sold_date"]:
+            cell = sold_agg[(p["sold_date"], p["site"])]
+            cell[0] += 1
+            cell[1] += vp(p["sold_price"])
+    data["series"]["sold"] = [{"d": d, "site": s, "c": c, "v": round(v)}
+                              for (d, s), (c, v) in sold_agg.items()]
     new_rows = db.execute("""SELECT first_seen d, site, COUNT(*) c,
                              SUM(CASE WHEN COALESCE(current_price,0)<? THEN
                                  COALESCE(current_price,0) ELSE 0 END) v FROM products
