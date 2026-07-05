@@ -68,12 +68,24 @@ sold_detection:
 
 aging_thresholds: [60, 90]
 
-# (No sold_exclusions set. The mechanism stays available in analyze.py: to drop
-# consignor pull-outs wrongly flagged as sold, add e.g.
-#   sold_exclusions:
-#     pursemaison:
-#       - "some distinctive title substring"
-# and they'll be removed from all sold metrics.)
+# Items to drop from ALL sold metrics (counts, value, feed, benchmark, trend) and
+# from live inventory. Keyed by site; each entry is a case/punctuation-insensitive
+# title substring. Add or remove items here as needed.
+sold_exclusions:
+  orangebox:
+    - "Rolex Daydate Computer Dial Diamonds YG President 36MM 2008"
+    - "Rolex Daytona Champagne Dial YG/Steel Oyster Bracelet 40MM 2017"
+    - "Audemars Piguet RO Offshore Chronograph RG Rubber Strap 44MM 2016"
+    - "Rolex Yachtmaster Blue Dial YG/Steel Oyster Bracelet 35MM 1999"
+    - "Rolex Daydate Computer Dial Diamonds RG Oyster 36MM"
+    - "Cartier Panthere Large All Steel. 4575227883FY"
+    - "Cartier Tank White Dial Roman YG/Steel 32mm"
+    - "Cartier Santos Galbee White Dial Roman All Steel 29MM"
+    - "Preowned. Chanel Ring"
+    - "Hermes Birkin 25 Sellier Black Epsom GHW. UHT494ID"
+    - "Rolex Lefty GMT Master II Green Ceramic Dial FullWhitegold 40MM 2026"
+    - "Rolex Day-Date MOP Dial President Rosegold 40MM 2026"
+    - "Rolex Day-Date 40 Eisenkiesel Diamond Set Dial President Rosegold 40MM 2026"
 
 hero_models:
   - name: Birkin 25
