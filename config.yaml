@@ -72,8 +72,9 @@ aging_thresholds: [60, 90]
 # out, not sold). Keyed by site; each entry is a case/punctuation-insensitive title
 # substring. Matches are removed from ALL sold metrics (counts, value, feed,
 # benchmark, trend) and from live inventory. Add new pull-outs here as they happen.
+# NOTE: these 12 were listed under Purse Maison (a consignor withdrew them 2026-07-04).
 sold_exclusions:
-  orangebox:
+  pursemaison:
     - "GG Sylvie Web Enamel Logo Supreme Sneakers"          # Screener Ace sneakers
     - "Lady Dior ABCDior Small in Black Quilted Cannage Lambskin"
     - "Birkin 25 Retourne in Etoupe Togo Leather and Gold Hardware Stamp W"
