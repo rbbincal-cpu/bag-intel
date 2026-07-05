@@ -62,6 +62,13 @@ BASE = {
         product(62, "Balenciaga Classic City Purple", 49000,
                 vendor="Miss Manila Luxe", tags=["MMLD2347"]),
     ],
+    "canonebags": [
+        # 8th store; brand_source: vendor (vendor holds the real brand)
+        product(71, "Gucci GG Marmont Small Shoulder Bag", 90000,
+                vendor="Gucci", tags=["Gucci"]),
+        product(72, "Christian Dior Lady Dior Medium Black", 250000,
+                vendor="Christian Dior", tags=["Christian Dior"]),
+    ],
 }
 
 
@@ -96,7 +103,7 @@ def main():
     # Day 1 — first scrape
     write_fixtures(cat)
     run_day("2026-06-01")
-    assert len(q("SELECT * FROM products")) == 15   # 5+3+1+1+1+2+2 across seven stores
+    assert len(q("SELECT * FROM products")) == 17   # 5+3+1+1+1+2+2+2 across eight stores
     r = q("SELECT * FROM products WHERE product_id=41")[0]
     assert r["status"] == "reserved", r["status"]
 
@@ -165,6 +172,8 @@ def main():
     assert aj["inventory_count"] == 2     # 6th store ingested via vendor brand_source
     mml = next(s for s in data["sites"] if s["key"] == "missmanilaluxe")
     assert mml["inventory_count"] == 2    # 7th store; brand read from title
+    cb = next(s for s in data["sites"] if s["key"] == "canonebags")
+    assert cb["inventory_count"] == 2     # 8th store; brand read from vendor
     mml_rows = {r["product_id"]: r for r in q("SELECT * FROM products WHERE site='missmanilaluxe'")}
     assert mml_rows[61]["brand"] == "Chanel" and mml_rows[62]["brand"] == "Balenciaga"
 
