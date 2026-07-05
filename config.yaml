@@ -68,6 +68,25 @@ sold_detection:
 
 aging_thresholds: [60, 90]
 
+# Items wrongly counted as "sold" but actually WITHDRAWN by the consignor (pulled
+# out, not sold). Keyed by site; each entry is a case/punctuation-insensitive title
+# substring. Matches are removed from ALL sold metrics (counts, value, feed,
+# benchmark, trend) and from live inventory. Add new pull-outs here as they happen.
+sold_exclusions:
+  orangebox:
+    - "GG Sylvie Web Enamel Logo Supreme Sneakers"          # Screener Ace sneakers
+    - "Lady Dior ABCDior Small in Black Quilted Cannage Lambskin"
+    - "Birkin 25 Retourne in Etoupe Togo Leather and Gold Hardware Stamp W"
+    - "Supreme Padlock Medium Shoulder Bag in GG Supreme Canvas"
+    - "Horsebit 1955 Medium in Beige/White GG Canvas"
+    - "Cross 3 Burgundy in Calfskin Leather Crossbody Bag"
+    - "GMT-Master II Oyster Perpetual Date Jubilee Silver Stainless Steel"  # Bat Girl watch
+    - "Picotin 22 in Etoupe Clemence Leather Gold Hardware Stamp U"
+    - "Diamond Love Bangle 18K White Gold Size 16"
+    - "Amazona 28 Handbag in Anagram Jacquard Canvas"
+    - "GG Marmont Flap Small Shoulder Bag in Black Matelasse Leather"
+    - "My Dior Mini Top Handle Bag in White Cannage Lambskin Leather"
+
 hero_models:
   - name: Birkin 25
     brand: Hermes
