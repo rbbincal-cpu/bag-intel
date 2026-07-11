@@ -12,6 +12,8 @@
 <style>
   .filter-row{margin:.25rem 0 1rem;font-size:14px}
   .filter-row select{padding:4px 8px;font:inherit;border:1px solid #C9CCCF;border-radius:6px;background:#fff}
+  tr.total td{border-top:2px solid #C9CCCF;font-weight:600;background:#FAFBFB}
+  tr.total td:first-child{letter-spacing:.04em;font-size:11.5px;color:#6D7175;text-transform:uppercase}
 </style>
 </head>
 <body>
@@ -110,6 +112,12 @@ loadData().then(data => {
       ? 'all-time totals for Sold & New · inventory, aging, drops & brand mix are the live snapshot'
       : (M === mp ? 'live snapshot as of the latest scrape'
                   : 'month-end snapshot · aging, drops & brand mix are live-only (current month)');
+    // running grand totals across every store (the market-wide picture)
+    const BRANDS = ['Hermès', 'Chanel', 'Louis Vuitton', 'Other'];
+    const T = { items: 0, inv: 0, sold: 0, soldVal: 0, newC: 0,
+                a60c: 0, a60v: 0, a90c: 0, a90v: 0, drops: 0, liveItems: 0 };
+    const mixT = { 'Hermès': 0, 'Chanel': 0, 'Louis Vuitton': 0, 'Other': 0 };
+
     const rows = data.sites.map(s => {
       const snap = invAt(s.key, isAll ? mp : M);
       const items = snap ? snap.count : 0;
@@ -130,8 +138,20 @@ loadData().then(data => {
         ? `${s.markdowns_mtd}${s.markdowns_mtd ? ` <span class="neg">(−${s.avg_discount_pct}%)</span>` : ''}`
         : '—';
       const mix = isCur
-        ? ['Hermès', 'Chanel', 'Louis Vuitton', 'Other'].map(b => (s.brand_mix[b] ?? 0) + '%').join(' / ')
+        ? BRANDS.map(b => (s.brand_mix[b] ?? 0) + '%').join(' / ')
         : '—';
+
+      // accumulate the market-wide totals
+      T.items += items; T.inv += invVal;
+      T.sold += sold.count; T.soldVal += sold.value; T.newC += newC;
+      if (isCur) {
+        T.a60c += s.aging60_count || 0; T.a60v += s.aging60_value || 0;
+        T.a90c += s.aging90_count || 0; T.a90v += s.aging90_value || 0;
+        T.drops += s.markdowns_mtd || 0;
+        T.liveItems += s.inventory_count || 0;
+        BRANDS.forEach(b => { mixT[b] += ((s.brand_mix[b] ?? 0) / 100) * (s.inventory_count || 0); });
+      }
+
       return `
       <tr class="${s.is_mine ? 'mine' : ''}">
         <td><a href="competitor.html?site=${s.key}">${esc(s.name)}</a></td>
@@ -148,11 +168,36 @@ loadData().then(data => {
         <td>${mix}</td>
       </tr>`;
     }).join('');
+
+    // ── grand total row: the whole market in one line ──
+    const dtsAllArr = feed.filter(p => p.days_to_sell != null
+                          && (isAll || (p.sold_date || '').slice(0, 7) === M)).map(p => p.days_to_sell);
+    const dtsAll = dtsAllArr.length
+      ? (dtsAllArr.reduce((a, b) => a + b, 0) / dtsAllArr.length).toFixed(1) : '—';
+    const mixAll = (isCur && T.liveItems)
+      ? BRANDS.map(b => (Math.round(mixT[b] / T.liveItems * 1000) / 10) + '%').join(' / ')
+      : '—';
+    const totalRow = `
+      <tr class="total">
+        <td>ALL STORES (${data.sites.length})</td>
+        <td>${T.items.toLocaleString()}</td>
+        <td>${peso(T.inv)}</td>
+        <td>${T.items ? pesoFull(Math.round(T.inv / T.items)) : '—'}</td>
+        <td>${T.sold.toLocaleString()}</td>
+        <td>${peso(T.soldVal)}</td>
+        <td>${T.newC.toLocaleString()}</td>
+        <td>${dtsAll}</td>
+        <td>${isCur ? `${T.a60c} · ${peso(T.a60v)}` : '—'}</td>
+        <td>${isCur ? `${T.a90c} · ${peso(T.a90v)}` : '—'}</td>
+        <td>${isCur ? T.drops : '—'}</td>
+        <td>${mixAll}</td>
+      </tr>`;
+
     document.getElementById('overview').innerHTML = `
       <thead><tr><th>Store</th><th>Items</th><th>Inv. value</th><th>Avg ticket</th>
       <th>Sold</th><th>Sold ₱</th><th>New</th><th>Avg DTS</th>
       <th>60d+ aged</th><th>90d+ aged</th><th>Drops</th><th>H/C/LV/Other</th></tr></thead>
-      <tbody>${rows}</tbody>`;
+      <tbody>${rows}${totalRow}</tbody>`;
   }
   ovSel.onchange = () => renderOverview(ovSel.value);
   renderOverview(mp);
