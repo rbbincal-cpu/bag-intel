@@ -49,6 +49,12 @@ sites:
     base_url: https://canonebagsprime.com
     is_mine: false
     brand_source: vendor   # vendor field holds the real brand (Gucci, Dior, YSL…)
+  - key: kcluxurybags
+    name: KC Luxury Bags
+    base_url: https://kcluxurybags.com
+    is_mine: false
+    platform: woocommerce  # not Shopify — read via the WooCommerce Store API
+    brand_source: title    # no vendor field; brand is parsed from the product title
 
 scrape:
   page_limit: 250
