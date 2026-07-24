@@ -104,6 +104,41 @@ def run_day(day):
     return r.stdout
 
 
+def test_partial_failure_resilience():
+    """A competitor fetch failure must NOT fail the job (dashboard keeps deploying);
+    a failure of the owner's own store (or all stores) MUST fail it."""
+    import copy, glob as _glob
+    d = tempfile.mkdtemp()
+    db = os.path.join(d, "res.db")
+
+    def run(fixdir):
+        env = {**os.environ, "BAGINTEL_DB": db, "BAGINTEL_TODAY": "2026-06-01"}
+        return subprocess.run(
+            [sys.executable, os.path.join(ROOT, "scraper", "scrape.py"),
+             "--from-json", fixdir], env=env, capture_output=True, text=True)
+
+    # competitor (mommymicah) missing -> exit 0, warning logged, others ingested
+    fd1 = os.path.join(d, "comp"); os.makedirs(fd1)
+    cat = copy.deepcopy(BASE); cat.pop("mommymicah")
+    for k, v in cat.items():
+        json.dump(v, open(os.path.join(fd1, f"{k}.json"), "w"))
+    r = run(fd1)
+    assert r.returncode == 0, r.stderr
+    assert "partial scrape" in r.stderr and "mommymicah" in r.stderr, r.stderr
+
+    # owner's own store (pursemaison) missing -> hard fail (exit != 0)
+    if os.path.exists(db):
+        os.remove(db)
+    fd2 = os.path.join(d, "mine"); os.makedirs(fd2)
+    cat2 = copy.deepcopy(BASE); cat2.pop("pursemaison")
+    for k, v in cat2.items():
+        json.dump(v, open(os.path.join(fd2, f"{k}.json"), "w"))
+    r = run(fd2)
+    assert r.returncode != 0, "owner-store failure must fail the job"
+    shutil.rmtree(d, ignore_errors=True)
+    print("Partial-failure resilience OK")
+
+
 def q(sql, *a):
     db = sqlite3.connect(DB)
     db.row_factory = sqlite3.Row
@@ -178,6 +213,7 @@ def main():
         os.remove(DB)
     test_wc_mapper()
     test_luxein_mapper()
+    test_partial_failure_resilience()
     import copy
     cat = copy.deepcopy(BASE)
 
