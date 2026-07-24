@@ -61,6 +61,12 @@ sites:
     is_mine: false
     platform: woocommerce  # WooCommerce Store API (clean titles/prices)
     brand_source: title    # brand parsed from the title (brands taxonomy is inconsistent)
+  - key: luxein
+    name: Luxe In
+    base_url: https://luxein.com
+    is_mine: false
+    platform: luxein       # custom storefront JSON API (api-galadriel.luxein.com)
+    brand_source: vendor   # API exposes a clean brand field (mapped to vendor)
 
 scrape:
   page_limit: 250
