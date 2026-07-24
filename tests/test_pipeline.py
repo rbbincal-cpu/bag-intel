@@ -69,6 +69,12 @@ BASE = {
         product(72, "Christian Dior Lady Dior Medium Black", 250000,
                 vendor="Christian Dior", tags=["Christian Dior"]),
     ],
+    "kcluxurybags": [
+        # 9th store; WooCommerce (brand_source: title). The --from-json path takes
+        # Shopify-shaped dumps, so the fixtures mirror what _wc_to_shopify() emits.
+        product(81, "Hermes So Kelly 26 in Gold Togo Leather GHW", 450000, vendor=""),
+        product(82, "Chanel Classic Double Flap Medium Black Caviar GHW", 520000, vendor=""),
+    ],
 }
 
 
@@ -94,16 +100,43 @@ def q(sql, *a):
     return rows
 
 
+def test_wc_mapper():
+    """WooCommerce Store-API product -> Shopify shape (used for non-Shopify stores)."""
+    sys.path.insert(0, os.path.join(ROOT, "scraper"))
+    from scrape import _wc_to_shopify
+    wc = {
+        "id": 35241, "name": "HERMÈS SO KELLY 26", "slug": "hermes-so-kelly-26",
+        "permalink": "https://kcluxurybags.com/product/hermes-so-kelly-26/",
+        "prices": {"price": "45000000", "currency_minor_unit": 2},
+        "is_in_stock": True, "is_purchasable": True,
+        "images": [{"src": "https://kcluxurybags.com/img/a.jpg"}],
+        "categories": [{"id": 84, "name": "Shoulder bags"}],
+        "description": "<p>Authentic</p>",
+    }
+    m = _wc_to_shopify(wc)
+    assert m["id"] == 35241 and m["title"] == "HERMÈS SO KELLY 26"
+    assert m["handle"] == "hermes-so-kelly-26"
+    assert m["url"] == "https://kcluxurybags.com/product/hermes-so-kelly-26/"
+    assert m["variants"][0]["price"] == 450000.0      # 45000000 minor / 10^2
+    assert m["variants"][0]["available"] is True
+    assert m["images"][0]["src"].endswith("a.jpg")
+    # out of stock / not purchasable => unavailable
+    m2 = _wc_to_shopify({**wc, "is_in_stock": False})
+    assert m2["variants"][0]["available"] is False
+    print("WooCommerce mapper OK")
+
+
 def main():
     if os.path.exists(DB):
         os.remove(DB)
+    test_wc_mapper()
     import copy
     cat = copy.deepcopy(BASE)
 
     # Day 1 — first scrape
     write_fixtures(cat)
     run_day("2026-06-01")
-    assert len(q("SELECT * FROM products")) == 17   # 5+3+1+1+1+2+2+2 across eight stores
+    assert len(q("SELECT * FROM products")) == 19   # +2 kcluxurybags => nine stores
     r = q("SELECT * FROM products WHERE product_id=41")[0]
     assert r["status"] == "reserved", r["status"]
 
@@ -174,6 +207,10 @@ def main():
     assert mml["inventory_count"] == 2    # 7th store; brand read from title
     cb = next(s for s in data["sites"] if s["key"] == "canonebags")
     assert cb["inventory_count"] == 2     # 8th store; brand read from vendor
+    kc = next(s for s in data["sites"] if s["key"] == "kcluxurybags")
+    assert kc["inventory_count"] == 2     # 9th store; WooCommerce, brand from title
+    kc_rows = {r["product_id"]: r for r in q("SELECT * FROM products WHERE site='kcluxurybags'")}
+    assert kc_rows[81]["brand"] == "Hermès" and kc_rows[82]["brand"] == "Chanel"
     mml_rows = {r["product_id"]: r for r in q("SELECT * FROM products WHERE site='missmanilaluxe'")}
     assert mml_rows[61]["brand"] == "Chanel" and mml_rows[62]["brand"] == "Balenciaga"
 
