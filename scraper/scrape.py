@@ -74,6 +74,65 @@ def fetch_catalog(sess, site, cfg):
     return products
 
 
+def _wc_to_shopify(p):
+    """Map one WooCommerce Store-API product to the Shopify product shape that
+    ingest_site() expects, so the rest of the pipeline is platform-agnostic."""
+    pr = p.get("prices") or {}
+    minor = pr.get("currency_minor_unit", 2)
+    raw = pr.get("price")
+    try:
+        price = int(raw) / (10 ** minor) if raw not in (None, "") else 0.0
+    except (ValueError, TypeError):
+        price = 0.0
+    avail = bool(p.get("is_in_stock", True)) and p.get("is_purchasable", True)
+    permalink = p.get("permalink") or ""
+    handle = p.get("slug") or (permalink.rstrip("/").rsplit("/", 1)[-1] if permalink else str(p.get("id")))
+    imgs = [{"src": im.get("src") or im.get("thumbnail")}
+            for im in (p.get("images") or []) if (im.get("src") or im.get("thumbnail"))]
+    cats = p.get("categories") or []
+    ptype = cats[0].get("name") if cats and isinstance(cats[0], dict) else None
+    return {
+        "id": p.get("id"),
+        "handle": handle,
+        "url": permalink or None,
+        "title": (p.get("name") or "").strip(),
+        "body_html": p.get("description") or p.get("short_description") or "",
+        "product_type": ptype,
+        "images": imgs,
+        "variants": [{"price": price, "available": avail}],
+        "published_at": p.get("date_created") or None,
+        "created_at": p.get("date_created") or None,
+    }
+
+
+def fetch_woocommerce(sess, site, cfg):
+    """Fetch a WooCommerce catalog via its public Store API (/wp-json/wc/store/v1),
+    returning products already mapped to the Shopify shape."""
+    sc = cfg["scrape"]
+    base = site["base_url"].rstrip("/")
+    out = []
+    for page in range(1, sc["max_pages"] + 1):
+        url = f"{base}/wp-json/wc/store/v1/products"
+        for attempt in range(sc["retries"]):
+            try:
+                r = sess.get(url, params={"per_page": 100, "page": page},
+                             timeout=sc["timeout_seconds"])
+                r.raise_for_status()
+                batch = r.json()
+                break
+            except Exception:
+                if attempt == sc["retries"] - 1:
+                    raise
+                time.sleep(5 * (attempt + 1))
+        if not isinstance(batch, list) or not batch:
+            break
+        out.extend(_wc_to_shopify(p) for p in batch)
+        if len(batch) < 100:
+            break
+        time.sleep(sc["delay_seconds"])
+    return out
+
+
 def image_hash_for(sess, src, width):
     if not (HAS_IMAGEHASH and src):
         return None
@@ -135,7 +194,7 @@ def ingest_site(db, site, products, today, cfg, sess=None):
                  current_price, status, initial_sold_out, image_src, image_hash, fingerprint)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (key, pid, p.get("handle"),
-                 f"{site['base_url'].rstrip('/')}/products/{p.get('handle')}",
+                 p.get("url") or f"{site['base_url'].rstrip('/')}/products/{p.get('handle')}",
                  title, nt, brand, model,
                  attrs["color"], attrs["hardware"], attrs["leather"], attrs["size"], cat,
                  today, today, p.get("published_at"), p.get("created_at"),
@@ -273,6 +332,9 @@ def main():
                 with open(os.path.join(args.from_json, f"{key}.json"), encoding="utf-8") as f:
                     products = json.load(f)
                 sess = None
+            elif site.get("platform", "shopify") == "woocommerce":
+                sess = session_for(cfg)
+                products = fetch_woocommerce(sess, site, cfg)
             else:
                 sess = session_for(cfg)
                 if cfg["scrape"].get("respect_robots") and not robots_allows(sess, site["base_url"]):
