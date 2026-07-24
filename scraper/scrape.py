@@ -110,13 +110,18 @@ def fetch_woocommerce(sess, site, cfg):
     returning products already mapped to the Shopify shape."""
     sc = cfg["scrape"]
     base = site["base_url"].rstrip("/")
+    # Some WooCommerce hosts sit behind a WAF/security plugin that rejects API
+    # requests lacking an explicit JSON Accept header with 415 Unsupported Media
+    # Type. Send browser-like Accept/Referer headers to satisfy them.
+    headers = {"Accept": "application/json, text/plain, */*",
+               "Referer": base + "/"}
     out = []
     for page in range(1, sc["max_pages"] + 1):
         url = f"{base}/wp-json/wc/store/v1/products"
         for attempt in range(sc["retries"]):
             try:
                 r = sess.get(url, params={"per_page": 100, "page": page},
-                             timeout=sc["timeout_seconds"])
+                             headers=headers, timeout=sc["timeout_seconds"])
                 r.raise_for_status()
                 batch = r.json()
                 break
@@ -441,7 +446,19 @@ def main():
     db.commit()
     db.close()
     if failures:
-        sys.exit(f"Scrape failures: {', '.join(failures)}")
+        # A competitor being temporarily unreachable must NOT blank the whole
+        # dashboard. A failed fetch skips ingest entirely, so that store simply
+        # keeps its last snapshot (no false sold-detection). Only hard-fail if
+        # OUR store failed or every attempted site failed — otherwise log a
+        # warning and exit 0 so analyze + deploy still run with fresh data for
+        # the stores that succeeded.
+        attempted = [s for s in cfg["sites"] if not (args.site and s["key"] != args.site)]
+        mine_failed = [s["key"] for s in attempted
+                       if s.get("is_mine") and s["key"] in failures]
+        if mine_failed or len(failures) == len(attempted):
+            sys.exit(f"Scrape failures: {', '.join(failures)}")
+        print(f"WARNING: partial scrape — {', '.join(failures)} failed; deploying "
+              f"with last-known data for those store(s).", file=sys.stderr)
 
 
 if __name__ == "__main__":
