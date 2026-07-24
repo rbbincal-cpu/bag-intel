@@ -75,6 +75,18 @@ BASE = {
         product(81, "Hermes So Kelly 26 in Gold Togo Leather GHW", 450000, vendor=""),
         product(82, "Chanel Classic Double Flap Medium Black Caviar GHW", 520000, vendor=""),
     ],
+    "mommymicah": [
+        # 10th store; WooCommerce (brand_source: title). Shopify-shaped dumps mirror
+        # what _wc_to_shopify() emits (no vendor; brand parsed from title).
+        product(101, "Louis Vuitton Neverfull MM Monogram", 85000, vendor=""),
+        product(102, "Prada Re-Edition 2005 Nylon Black", 60000, vendor=""),
+    ],
+    "luxein": [
+        # 11th store; custom storefront API (brand_source: vendor holds the brand).
+        # --from-json takes Shopify-shaped dumps mirroring _luxein_to_shopify().
+        product(91, "Camden Leopard Nylon Tote Bag", 6800, vendor="Kate Spade"),
+        product(92, "Interlocking G Buckle Red Leather Belt", 17000, vendor="Gucci"),
+    ],
 }
 
 
@@ -126,17 +138,53 @@ def test_wc_mapper():
     print("WooCommerce mapper OK")
 
 
+def test_luxein_mapper():
+    """Luxe In storefront-API product -> Shopify shape."""
+    sys.path.insert(0, os.path.join(ROOT, "scraper"))
+    from scrape import _luxein_to_shopify
+    lx = {
+        "id": 21308, "name": "Camden Leopard Nylon Tote Bag",
+        "slug": "camden-leopard-nylon-tote-bag-x8j6ka",
+        "brand_new_price": 21492.64, "special_price": None, "price": 6800,
+        "brand": "Kate Spade",
+        "category": [{"category_id": 363, "name": "Designer Bags"}],
+        "thumbnail": "https://s3/thumb.jpg",
+        "gallery": "https://s3/a.jpg,https://s3/b.jpg",
+    }
+    m = _luxein_to_shopify(lx)
+    assert m["id"] == 21308 and m["title"] == "Camden Leopard Nylon Tote Bag"
+    assert m["handle"] == "camden-leopard-nylon-tote-bag-x8j6ka"
+    assert m["url"] == "https://luxein.com/product/camden-leopard-nylon-tote-bag-x8j6ka"
+    assert m["vendor"] == "Kate Spade"
+    assert m["variants"][0]["price"] == 6800.0
+    assert m["variants"][0]["available"] is True          # storefront returns in-stock only
+    assert m["images"][0]["src"] == "https://s3/thumb.jpg"
+    assert m["product_type"] == "Designer Bags"
+    # special_price overrides price when present
+    m2 = _luxein_to_shopify({**lx, "special_price": 5000})
+    assert m2["variants"][0]["price"] == 5000.0
+    # category filter: keep bags/watches/jewelry, drop electronics & shoes
+    from scrape import _luxein_keep
+    assert _luxein_keep(lx) is True
+    assert _luxein_keep({"category": [{"name": "Luxury Watches"}]}) is True
+    assert _luxein_keep({"category": [{"name": "Jewelry & Accessories"}]}) is True
+    assert _luxein_keep({"category": [{"name": "Electronics"}]}) is False
+    assert _luxein_keep({"category": [{"name": "Shoes"}]}) is False
+    print("Luxe In mapper OK")
+
+
 def main():
     if os.path.exists(DB):
         os.remove(DB)
     test_wc_mapper()
+    test_luxein_mapper()
     import copy
     cat = copy.deepcopy(BASE)
 
     # Day 1 — first scrape
     write_fixtures(cat)
     run_day("2026-06-01")
-    assert len(q("SELECT * FROM products")) == 19   # +2 kcluxurybags => nine stores
+    assert len(q("SELECT * FROM products")) == 23   # +mommymicah +luxein => eleven stores
     r = q("SELECT * FROM products WHERE product_id=41")[0]
     assert r["status"] == "reserved", r["status"]
 
@@ -211,6 +259,16 @@ def main():
     assert kc["inventory_count"] == 2     # 9th store; WooCommerce, brand from title
     kc_rows = {r["product_id"]: r for r in q("SELECT * FROM products WHERE site='kcluxurybags'")}
     assert kc_rows[81]["brand"] == "Hermès" and kc_rows[82]["brand"] == "Chanel"
+    mm = next(s for s in data["sites"] if s["key"] == "mommymicah")
+    assert mm["inventory_count"] == 2     # 10th store; WooCommerce, brand from title
+    lx = next(s for s in data["sites"] if s["key"] == "luxein")
+    assert lx["inventory_count"] == 2     # 11th store; storefront API, brand from vendor
+    lx_rows = {r["product_id"]: r for r in q("SELECT * FROM products WHERE site='luxein'")}
+    # luxein's clean vendor brand flows through normalize_brand: luxury brands are
+    # kept (Gucci), non-luxury labels (Kate Spade) fold into "Other" — correct for
+    # a luxury-bag tracker.
+    assert lx_rows[92]["brand"] == "Gucci"
+    assert lx_rows[91]["brand"] == "Other"
     mml_rows = {r["product_id"]: r for r in q("SELECT * FROM products WHERE site='missmanilaluxe'")}
     assert mml_rows[61]["brand"] == "Chanel" and mml_rows[62]["brand"] == "Balenciaga"
 
