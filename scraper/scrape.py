@@ -133,6 +133,92 @@ def fetch_woocommerce(sess, site, cfg):
     return out
 
 
+def _luxein_to_shopify(p):
+    """Map one Luxe In (galadriel storefront API) product to the Shopify product
+    shape the pipeline expects. Prices are plain PHP integers (no minor units);
+    the storefront endpoint only ever returns in-stock items."""
+    raw = p.get("special_price")
+    if raw in (None, "", 0):
+        raw = p.get("price")
+    try:
+        price = float(raw) if raw not in (None, "") else 0.0
+    except (ValueError, TypeError):
+        price = 0.0
+    slug = p.get("slug") or str(p.get("id"))
+    cats = p.get("category") or []
+    ptype = cats[0].get("name") if cats and isinstance(cats[0], dict) else None
+    imgs = []
+    if p.get("thumbnail"):
+        imgs.append({"src": p["thumbnail"]})
+    for g in (p.get("gallery") or "").split(","):
+        g = g.strip()
+        if g:
+            imgs.append({"src": g})
+    return {
+        "id": p.get("id"),
+        "handle": slug,
+        "url": f"https://luxein.com/product/{slug}",
+        "title": (p.get("name") or "").strip(),
+        "vendor": (p.get("brand") or "").strip(),
+        "body_html": "",
+        "product_type": ptype,
+        "images": imgs,
+        "variants": [{"price": price, "available": True}],
+        "published_at": None,
+        "created_at": None,
+    }
+
+
+# Luxe In is a broad reseller; these categories are outside the luxury bag/watch
+# market this dashboard tracks and would inflate unit/value totals, so they're
+# dropped at ingest. Kept: Designer Bags, Luxury Watches, Jewelry & Accessories.
+_LUXEIN_DROP_CATEGORIES = {"electronics", "shoes"}
+
+
+def _luxein_keep(p):
+    cats = p.get("category") or []
+    name = (cats[0].get("name") if cats and isinstance(cats[0], dict) else "") or ""
+    return name.strip().lower() not in _LUXEIN_DROP_CATEGORIES
+
+
+def fetch_luxein(sess, site, cfg):
+    """Fetch the Luxe In catalog via its storefront JSON API. The API is behind
+    CloudFront and expects browser-like headers; it returns only in-stock items
+    and exposes total_pages for pagination. Non-bag categories (electronics,
+    shoes) are filtered out to keep totals accurate to the luxury bag market."""
+    sc = cfg["scrape"]
+    api = "https://api-galadriel.luxein.com/api/v2/products/storefront"
+    params = {"limit": 100, "order": "desc", "sex": "all", "sort_by": "Latest Arrivals", "keyword": ""}
+    headers = {"Origin": "https://luxein.com", "Referer": "https://luxein.com/",
+               "Accept": "application/json"}
+    out = []
+    total_pages = None
+    page = 1
+    while page <= sc["max_pages"]:
+        for attempt in range(sc["retries"]):
+            try:
+                r = sess.get(api, params={**params, "page": page},
+                             headers=headers, timeout=sc["timeout_seconds"])
+                r.raise_for_status()
+                body = r.json()
+                break
+            except Exception:
+                if attempt == sc["retries"] - 1:
+                    raise
+                time.sleep(5 * (attempt + 1))
+        batch = body.get("data") or []
+        if total_pages is None:
+            total_pages = body.get("total_pages") or 1
+        if not batch:
+            break
+        out.extend(_luxein_to_shopify(p) for p in batch if _luxein_keep(p))
+        if page >= total_pages:
+            break
+        page += 1
+        time.sleep(sc["delay_seconds"])
+    return out
+
+
 def image_hash_for(sess, src, width):
     if not (HAS_IMAGEHASH and src):
         return None
@@ -335,6 +421,9 @@ def main():
             elif site.get("platform", "shopify") == "woocommerce":
                 sess = session_for(cfg)
                 products = fetch_woocommerce(sess, site, cfg)
+            elif site.get("platform") == "luxein":
+                sess = session_for(cfg)
+                products = fetch_luxein(sess, site, cfg)
             else:
                 sess = session_for(cfg)
                 if cfg["scrape"].get("respect_robots") and not robots_allows(sess, site["base_url"]):
